@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+
+{% block title %}Checkout - FoodHub{% endblock %}
+
+{% block content %}
+<h2 style="margin-bottom: 1.5rem;">Checkout</h2>
+
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem;">
+    <div>
+        <div style="background: white; padding: 2rem; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+            <h3 style="margin-bottom: 1rem;">Order Summary</h3>
+            {% for item in cart_items %}
+                <div style="display: flex; justify-content: space-between; padding: 0.5rem 0; border-bottom: 1px solid #f1f3f5;">
+                    <span>{{ item.name }} x {{ item.quantity }}</span>
+                    <span>${{ "%.2f"|format(item.subtotal) }}</span>
+                </div>
+            {% endfor %}
+            
+            <div style="margin-top: 1rem; padding-top: 1rem; border-top: 2px solid #2d3436;">
+                <div style="display: flex; justify-content: space-between; font-size: 1.2rem; font-weight: bold;">
+                    <span>Total:</span>
+                    <span>${{ "%.2f"|format(total) }}</span>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div>
+        <div style="background: white; padding: 2rem; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+            <h3 style="margin-bottom: 1rem;">Delivery Details</h3>
+            
+            <form method="POST" action="{{ url_for('checkout') }}">
+                <div class="form-group">
+                    <label for="address">Delivery Address</label>
+                    <textarea id="address" name="address" required></textarea>
+                </div>
+                
+                <div class="form-group">
+                    <label for="coins_to_use">Use Coins (You have {{ coin_balance }} coins)</label>
+                    <input type="number" id="coins_to_use" name="coins_to_use" min="0" max="{{ [coin_balance, total|int]|min }}" value="0">
+                    <p style="color: #636e72; font-size: 0.9rem; margin-top: 0.5rem;">
+                        1 coin = $1 discount. Max {{ [coin_balance, total|int]|min }} coins can be used.
+                    </p>
+                </div>
+                
+                <div style="background: #fff3cd; padding: 1rem; border-radius: 5px; margin-bottom: 1rem;">
+                    <p style="color: #856404; font-size: 0.9rem;">
+                        💰 You'll earn {{ (total * 0.05)|int }} cashback coins (5%) on this order!
+                    </p>
+                </div>
+                
+                <button type="submit" class="btn" style="width: 100%; padding: 1rem;">Place Order</button>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

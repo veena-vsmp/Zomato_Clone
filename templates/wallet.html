@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+
+{% block title %}My Wallet - FoodHub{% endblock %}
+
+{% block content %}
+<h2 style="margin-bottom: 1.5rem;">My Coin Wallet</h2>
+
+<div style="background: linear-gradient(135deg, #e23744 0%, #cb202d 100%); color: white; padding: 3rem; border-radius: 10px; text-align: center; margin-bottom: 2rem;">
+    <p style="font-size: 1.2rem; margin-bottom: 0.5rem;">Total Balance</p>
+    <p style="font-size: 4rem; font-weight: bold;">🪙 {{ coin_balance }}</p>
+    <p style="font-size: 1.1rem; opacity: 0.9;">coins available to redeem</p>
+</div>
+
+<h3 style="margin-bottom: 1rem;">Transaction History</h3>
+
+{% if transactions %}
+    <table class="transactions-table">
+        <thead>
+            <tr>
+                <th>Date</th>
+                <th>Description</th>
+                <th>Type</th>
+                <th>Amount</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for transaction in transactions %}
+                <tr>
+                    <td>{{ transaction.created_at }}</td>
+                    <td>{{ transaction.description }}</td>
+                    <td>
+                        {% if transaction.transaction_type == 'earned' %}
+                            <span style="color: #2ecc71;">✓ Earned</span>
+                        {% else %}
+                            <span style="color: #e74c3c;">↓ Spent</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if transaction.amount > 0 %}
+                            <span class="earned">+{{ transaction.amount }}</span>
+                        {% else %}
+                            <span class="spent">{{ transaction.amount }}</span>
+                        {% endif %}
+                    </td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+{% else %}
+    <div style="text-align: center; padding: 3rem; background: white; border-radius: 10px;">
+        <p style="color: #636e72;">No transactions yet. Start playing games to earn coins!</p>
+        <a href="{{ url_for('games') }}" class="btn" style="margin-top: 1rem; display: inline-block; text-decoration: none;">Play Games</a>
+    </div>
+{% endif %}
+{% endblock %}

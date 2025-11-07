@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+
+{% block title %}Play Games - FoodHub{% endblock %}
+
+{% block content %}
+<div class="hero">
+    <h2>Play Games & Earn Coins</h2>
+    <p>Have fun and collect coins to use on your next order!</p>
+</div>
+
+<div class="games-grid">
+    <div class="game-card">
+        <div class="game-icon">🧠</div>
+        <h3>Memory Match</h3>
+        <p>Match pairs of food emojis and earn up to 50 coins!</p>
+        <a href="{{ url_for('memory_game') }}" class="btn">Play Now</a>
+    </div>
+    
+    <div class="game-card">
+        <div class="game-icon">🎰</div>
+        <h3>Lucky Spin</h3>
+        <p>Spin the wheel and win coins instantly!</p>
+        <a href="{{ url_for('spin_wheel') }}" class="btn">Play Now</a>
+    </div>
+    
+    <div class="game-card">
+        <div class="game-icon">❓</div>
+        <h3>Food Quiz</h3>
+        <p>Test your food knowledge and earn 10 coins per correct answer!</p>
+        <a href="{{ url_for('quiz_game') }}" class="btn">Play Now</a>
+    </div>
+</div>
+
+<div style="background: white; padding: 2rem; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); margin-top: 2rem; text-align: center;">
+    <h3 style="margin-bottom: 1rem;">Your Current Balance</h3>
+    <p style="font-size: 3rem; font-weight: bold; color: #e23744;">🪙 {{ user_coin_balance }} Coins</p>
+    <p style="color: #636e72; margin-top: 1rem;">Use coins to get discounts on your orders!</p>
+</div>
+{% endblock %}

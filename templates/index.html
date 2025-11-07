@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="hero">
+    <h2>Discover the Best Food Near You</h2>
+    <p>Order from top restaurants and earn coins while you eat!</p>
+</div>
+
+<div class="search-section">
+    <form method="GET" action="{{ url_for('index') }}" class="search-form">
+        <input type="text" name="search" placeholder="Search for restaurants or cuisines..." value="{{ search_query }}">
+        <select name="cuisine">
+            <option value="">All Cuisines</option>
+            {% for cuisine in cuisines %}
+                <option value="{{ cuisine.cuisine }}" {% if cuisine_filter == cuisine.cuisine %}selected{% endif %}>
+                    {{ cuisine.cuisine }}
+                </option>
+            {% endfor %}
+        </select>
+        <button type="submit" class="btn">Search</button>
+    </form>
+</div>
+
+{% if restaurants %}
+    <div class="restaurant-grid">
+        {% for restaurant in restaurants %}
+            <a href="{{ url_for('restaurant', restaurant_id=restaurant.id) }}" style="text-decoration: none; color: inherit;">
+                <div class="restaurant-card">
+                    <img src="{{ restaurant.image_url }}" alt="{{ restaurant.name }}">
+                    <div class="restaurant-info">
+                        <h3>{{ restaurant.name }}</h3>
+                        <span class="cuisine-tag">{{ restaurant.cuisine }}</span>
+                        <p>{{ restaurant.description }}</p>
+                        <div class="restaurant-meta">
+                            <span class="rating">⭐ {{ restaurant.rating }}</span>
+                            <span class="delivery-time">🕐 {{ restaurant.delivery_time }}</span>
+                        </div>
+                        <p style="color: #636e72; margin-top: 0.5rem;">📍 {{ restaurant.location }}</p>
+                    </div>
+                </div>
+            </a>
+        {% endfor %}
+    </div>
+{% else %}
+    <p style="text-align: center; color: #636e72; margin-top: 2rem;">No restaurants found. Try a different search!</p>
+{% endif %}
+{% endblock %}
