@@ -1,0 +1,232 @@
+<html>
+<head>
+    <title>Zomato|About us</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB" crossorigin="anonymous">
+
+<style>
+  /* Header section */
+  .header {
+    position: relative;
+    width: 100%;
+    height: 70vh; /* full height section */
+    background: url("your-image.jpg") no-repeat center center/cover; /* background image fills header */
+    color: white;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+  }
+
+  /* Dark overlay to make text visible */
+  .header::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.55); /* dark overlay */
+    z-index: 1;
+  }
+
+  /* Text styling */
+  .header-content {
+    position: relative;
+    z-index: 2;
+  }
+
+  .header-content h1 {
+    font-size: 60px;
+    font-weight: bold;
+    margin-bottom: 10px;
+  }
+
+  .header-content p {
+    font-size: 22px;
+  }
+  footer {
+  background-color: #f8f8f8;
+  padding: 40px 30px;
+  border-top: 1px solid #ddd;
+  margin-top: 50px;
+}
+
+.footer-container {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  max-width: 1100px;
+  margin: auto;
+}
+
+.footer-section {
+  flex: 1 1 200px;
+  margin: 10px;
+}
+.footer-section ul {
+  list-style: none;
+  padding: 0;
+}
+
+.footer-section ul li {
+  margin-bottom: 10px;
+}
+.footer-section ul li a {
+  text-decoration: none;
+  color: #666;
+  font-size: 14px;
+}
+
+.footer-section ul li a:hover {
+  color: #e03546; /* Zomato red */
+}
+
+.icons{
+  width: 25px;
+  height: 25px;
+}
+  .about-section{
+    padding:40px;
+  }
+  .about-line {
+  border: none;
+  height: 3px;         
+  background-color: black;          
+  margin-top: 5px;
+  margin-bottom: 25px;
+}
+</style>  
+</head>
+<body>
+<nav class="navbar navbar-expand-lg bg-body-tertiary">
+  <div class="container-fluid">
+    <a class="navbar-brand" href="#">Zomato</a>
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+    <div class="collapse navbar-collapse" id="navbarNav">
+      <ul class="navbar-nav">
+         <li class="nav-item">
+          <a class="nav-link active" aria-current="page" href="/">Home</a>
+        </li>
+        <section id="about">
+         <li class="nav-item">
+          <a class="nav-link" href="#aboutus">About Us</a>
+        </li>
+        </section>
+        <li class="nav-item">
+          <a class="nav-link" href="#community">Community</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="#contact">Contact Us</a>
+        </li>
+      </ul>
+    </div>
+  </div>
+</nav>
+
+<!-- Header section -->
+<header class="header" style="background-image:url('https://th.bing.com/th/id/OIP.oBpqhthxCGZeJC_2QJvmqAHaE8?w=264&h=180&c=7&r=0&o=7&dpr=1.3&pid=1.7&rm=3');">
+  <div class="header-content">
+    <h1>zomato</h1>
+    <p>BEST FOOD FOR PEOPLE</p>
+  </div>
+</header>
+
+<div class="content" role="main">
+  <div class="left-column">
+    <img src="https://th.bing.com/th/id/OIP.owQ2WAFat5QvouQ6f8od3QHaFN?w=251&h=180&c=7&r=0&o=7&dpr=1.3&pid=1.7&rm=3" alt="delivery person on scooter" style="float: right; width: 500px; margin-left: 20px;">
+  </div>
+  <div class="muted-small" text-align="right" style="margin-right: 50%; font-size: 20px;">
+  <div class="about-section">
+    <section id="aboutus">
+    <h2 class="about-title">About</h2>
+    <hr class="about-line" width="100px">
+    <h3 style="font-family:Arial, Helvetica, sans-serif;">Know more about us</h3>
+    <br>
+    Zomato is a restaurant searching platform and discovery service founded in 2008.
+  Service provided by zomato <b>i.e restaurant searching, discovery, online ordering and table reservation etc.</b>
+  Food delivery apps have become a part of our everyday lives, and among them, Zomato stands out as one of the most popular. 
+  It helps users explore restaurants and order food easily.
+  </div>
+  <div class="about-section">
+    Better food for more people. Through innovative technology, deep local insights, and a relentless focus on customer experience, Zomato is reshaping the food landscape one meal at a time.
+  </div>
+  </div>
+  </section>
+  <div class="about-section">
+    <section id="community">
+     <div class="muted-small" text-align="right" style="margin-right: 50%; font-size: 20px;">
+      <h2 class="about-title">Community</h2>
+    <hr class="about-line" width="160px">
+    Join our vibrant community of food enthusiasts, share your experiences, and explore new culinary adventures.
+  </div>
+</div>
+</section>
+<div class="about-section">
+    <section id="contact">
+<div class="muted-small" text-align="right" style="margin-right: 50%; font-size: 20px;">
+       <h2 class="about-title">Contact</h2>
+    <hr class="about-line" width="120px">
+    Have questions or feedback? We'd love to hear from you! Reach out to our support team.
+    <br>Phone no: +91 9876543210
+    </div>
+    <br>
+    <div class="container">
+    <div class="row">
+      <div class="col-md-6">
+        <form>
+          <div class="mb-3">
+            <label for="name" class="form-label">Name</label>
+            <input type="text" class="form-control" id="name" placeholder="Enter your name">
+          </div>
+          <div class="mb-3">
+            <label for="email" class="form-label">Email address</label>
+            <input type="email" class="form-control" id="email" placeholder="Enter your email">
+          </div>
+          <div class="mb-3">
+            <label for="message" class="form-label">Message</label>
+            <textarea class="form-control" id="message" rows="4" placeholder="Enter your message"></textarea>
+          </div>
+          <button type="submit" class="btn btn-primary">Submit</button>
+    </div>
+  </div>
+  </div>
+  <footer id="footer" class="footer" data-colorpreset="cp-dark-background">
+<div class="footer-container">
+ <div class="footer-section">
+      <h5>Company</h5>
+      <ul>
+        <li><a href="{{ url_for('aboutus') }}"> About </a></li>
+        <li><a href="#contact">Contact us</a></li>
+        <li><a href="#community">Community</a></li>
+        <li><a href="#">Zomato Blog</a></li>
+      </ul>
+    </div>
+    <div class="footer-section">
+      <h5>For Restaurants</h5>
+      <ul>
+        <li><a href="#">Partner With Us</a></li>
+        <li><a href="#">Apps for You</a></li>
+      </ul>
+    </div>
+<div class="footer-section">
+      <h5>Social Links</h5>
+      <div class="social-icons">
+        <a href="#"><img src="/static/home_images/fb.png" class="icons" alt="Facebook" /></a>
+        <a href="#"><img src="/static/home_images/twitter.png" class="icons" alt="Twitter" /></a>
+        <a href="#"><img src="/static/home_images/ig.jpg" class="icons" alt="Instagram" /></a>
+        <a href="#"><img src="/static/home_images/lidn.png" class="icons" alt="LinkedIn" /></a>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="about-section">
+ <div class="footer-bottom" style="text-align: center;">
+    <p>© 2025 Zomato™ Ltd. All rights reserved.</p>
+  </div> 
+</div>
+ </footer>
+ <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js" integrity="sha384-FKyoEForCGlyvwx9Hj09JcYn3nv7wiPVlz7YYwJrWVcXK/BmnVDxM+D2scQbITxI" crossorigin="anonymous"></script>
+</body>
+</html>

@@ -13,6 +13,11 @@ login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
 
+
+@app.route('/aboutus')
+def aboutus():
+    return render_template('aboutus.html')
+
 class User(UserMixin):
     def __init__(self, id, username, email, coin_balance):
         self.id = id

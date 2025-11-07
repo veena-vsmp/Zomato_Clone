@@ -661,3 +661,54 @@ body {
         font-size: 2rem;
     }
 }
+
+
+ooter {
+  background-color: #f8f8f8;
+  padding: 40px 30px;
+  border-top: 1px solid #ddd;
+  margin-top: 50px;
+}
+
+.footer-container {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  max-width: 1100px;
+  margin: auto;
+}
+
+.footer-section {
+  flex: 1 1 200px;
+  margin: 10px;
+}
+
+.footer-section h3 {
+  margin-bottom: 15px;
+  font-size: 16px;
+  color: #333;
+}
+
+.footer-section ul {
+  list-style: none;
+  padding: 0;
+}
+
+.footer-section ul li {
+  margin-bottom: 10px;
+}
+
+.footer-section ul li a {
+  text-decoration: none;
+  color: #666;
+  font-size: 14px;
+}
+
+.footer-section ul li a:hover {
+  color: #e03546; /* Zomato red */
+}
+
+.icons{
+  width: 25px;
+  height: 25px
+}
