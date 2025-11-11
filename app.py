@@ -332,10 +332,10 @@ def memory():
 def catch():
     return render_template('catch.html')
 
-@app.route('/game/quiz')
+@app.route('/game/runner')
 @login_required
-def quiz_game():
-    return render_template('quiz_game.html')
+def runner():
+    return render_template('runner.html')
 
 
 @app.route('/api/game/complete', methods=['POST'])

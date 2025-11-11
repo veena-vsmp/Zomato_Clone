@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Delivery Runner — Night Mode</title>
+  <style>
+    :root{--bg:#000;--fg:#fff;--gold1:#FFD700;--gold2:#FFA500}
+    html,body{
+      height:100%;margin:0;background:var(--bg);color:var(--fg);
+      font-family:Inter,system-ui,Segoe UI,Roboto,Arial;
+      display:flex;align-items:center;justify-content:center;
+    }
+    #wrap{position:relative}
+    canvas{
+      background:linear-gradient(#050505,#000);
+      display:block;border-radius:6px;
+    }
+    #coinsUI{
+      position:absolute;right:12px;top:8px;
+      color:var(--fg);font-weight:700;
+      background:rgba(255,255,255,0.05);
+      padding:6px 10px;border-radius:6px;
+    }
+  </style>
+</head>
+<body>
+  <div id="wrap">
+    <canvas id="gameCanvas" width="900" height="300"></canvas>
+    <div id="coinsUI">Coins: <span id="coins">0</span></div>
+  </div>
+
+  <script>
+  const canvas = document.getElementById('gameCanvas');
+  const ctx = canvas.getContext('2d');
+  const coinsEl = document.getElementById('coins');
+  canvas.width = 900; 
+  canvas.height = 300;
+
+  // 🎮 Difficulty — tuned for 3/5 easy
+  let gameSpeed = 4.2;
+  let coins_earned = 0;
+  let isGameOver = false;
+  let frame = 0;
+
+  const runner = { x:100, y:220, w:40, h:60, vy:0, jumpPower:-12, gravity:0.7, onGround:true };
+  let obstacles = [];
+  let coins = [];
+
+  function rand(min,max){ return Math.random()*(max-min)+min; }
+
+  function resetGame(){
+    runner.y = 220; runner.vy = 0; runner.onGround = true;
+    obstacles = []; coins = []; isGameOver=false; frame=0;
+    coins_earned = 0; coinsEl.textContent = coins_earned;
+    requestAnimationFrame(loop);
+  }
+
+  // 🧱 Different obstacle shapes
+  function spawnObstacle(){
+    const t = Math.floor(rand(0,4));
+    if(t===0) obstacles.push({x:canvas.width,y:240,w:28,h:40,color:'#555',shape:'rect'});
+    else if(t===1) obstacles.push({x:canvas.width,y:250,w:50,h:30,color:'#777',shape:'barrier'});
+    else if(t===2) obstacles.push({x:canvas.width,y:230,w:35,h:35,color:'#999',shape:'cube'});
+    else obstacles.push({x:canvas.width,y:245,w:20,h:35,color:'#aaa',shape:'cone'});
+  }
+
+  function spawnCoin(){ 
+    coins.push({x:canvas.width, y:160 + Math.random()*80, r:9}); 
+  }
+
+  // Controls
+  window.addEventListener('keydown', e=>{
+    if((e.code==='Space' || e.code==='ArrowUp') && runner.onGround && !isGameOver){
+      runner.vy = runner.jumpPower;
+      runner.onGround=false;
+    }
+  });
+  canvas.addEventListener('touchstart', e=>{
+    e.preventDefault(); 
+    if(runner.onGround && !isGameOver){
+      runner.vy = runner.jumpPower; runner.onGround=false;
+    }
+  });
+
+  function rectCollision(a,b){
+    return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+  }
+
+  function loop(){
+    if(isGameOver) return;
+    frame++;
+
+    // background
+    ctx.fillStyle='#000';
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+
+    // stars
+    ctx.fillStyle='#222';
+    for(let i=0;i<40;i++){ ctx.fillRect((i*37)%canvas.width,(i*13)%120,1,1); }
+
+    // white ground line
+    ctx.strokeStyle='#fff';
+    ctx.lineWidth=2;
+    ctx.beginPath();
+    ctx.moveTo(0,280);
+    ctx.lineTo(canvas.width,280);
+    ctx.stroke();
+
+    // runner (delivery boy)
+    ctx.fillStyle='#e33'; 
+    ctx.fillRect(runner.x, runner.y, runner.w, runner.h-10);
+    ctx.fillStyle='#fff'; 
+    ctx.fillRect(runner.x+10, runner.y-12, 20,12);
+    ctx.fillStyle='#e33'; 
+    ctx.fillRect(runner.x+8, runner.y-18, 24,6);
+    ctx.fillStyle='#444'; 
+    ctx.fillRect(runner.x-16, runner.y+8, 14,20);
+
+    // obstacles
+    for(let i=obstacles.length-1;i>=0;i--){
+      const o = obstacles[i]; 
+      o.x -= gameSpeed;
+
+      ctx.fillStyle = o.color;
+      if(o.shape==='rect') ctx.fillRect(o.x,o.y,o.w,o.h);
+      else if(o.shape==='barrier'){
+        ctx.beginPath();
+        ctx.moveTo(o.x,o.y+o.h);
+        ctx.lineTo(o.x+o.w,o.y+o.h);
+        ctx.lineTo(o.x+o.w/2,o.y);
+        ctx.closePath();
+        ctx.fill();
+      }
+      else if(o.shape==='cube'){
+        ctx.beginPath();
+        ctx.rect(o.x,o.y,o.w,o.h);
+        ctx.fill();
+      }
+      else if(o.shape==='cone'){
+        ctx.beginPath();
+        ctx.moveTo(o.x,o.y+o.h);
+        ctx.lineTo(o.x+o.w/2,o.y);
+        ctx.lineTo(o.x+o.w,o.y+o.h);
+        ctx.closePath();
+        ctx.fill();
+      }
+
+      if(o.x+o.w<-10) obstacles.splice(i,1);
+
+      if(rectCollision(runner,{x:o.x,y:o.y,w:o.w,h:o.h})){
+        isGameOver = true;
+        updateCoinsToWallet(coins_earned);
+        drawGameOver();
+        return;
+      }
+    }
+
+    // coins
+    for(let i=coins.length-1;i>=0;i--){
+      const c = coins[i];
+      c.x -= gameSpeed;
+
+      const grad = ctx.createLinearGradient(c.x-c.r,c.y-c.r,c.x+c.r,c.y+c.r);
+      grad.addColorStop(0,'#FFD700');
+      grad.addColorStop(1,'#FFA500');
+      ctx.beginPath();
+      ctx.fillStyle = grad;
+      ctx.arc(c.x,c.y,c.r,0,Math.PI*2);
+      ctx.fill();
+      ctx.lineWidth=1;
+      ctx.strokeStyle='#b8860b';
+      ctx.stroke();
+
+      if(c.x+c.r<-10) coins.splice(i,1);
+      if(Math.abs((runner.x+runner.w/2)-c.x)<30 && Math.abs((runner.y+runner.h/2)-c.y)<30){
+        coins.splice(i,1);
+        coins_earned++;
+        coinsEl.textContent = coins_earned;
+      }
+    }
+
+    // physics
+    runner.y += runner.vy; 
+    runner.vy += runner.gravity || 0.7;
+    if(runner.y>220){ runner.y=220; runner.vy=0; runner.onGround=true; }
+
+    // spawns
+    if(frame % 180 === 0) spawnObstacle();
+    if(frame % 210 === 0) spawnCoin();
+
+    requestAnimationFrame(loop);
+  }
+
+  function drawGameOver(){
+    ctx.fillStyle='rgba(0,0,0,0.6)';
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+    ctx.fillStyle='#fff';
+    ctx.font='bold 28px sans-serif';
+    ctx.textAlign='center';
+    ctx.fillText('Game Over',canvas.width/2,canvas.height/2 -10);
+    ctx.font='16px sans-serif';
+    ctx.fillText('Click OK to restart after reward alert',canvas.width/2,canvas.height/2 +20);
+  }
+
+  // 🎁 Backend sync + restart after OK (1s delay)
+  function updateCoinsToWallet(score){
+    fetch('/api/game/complete', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ game_type:'memory', score: score })
+    })
+    .then(r=>r.json())
+    .then(data=>{
+      if(data.success){
+        alert(`🎉 You earned ${data.coins_earned} coins!\\nYour new balance: 🪙 ${data.new_balance}`);
+        setTimeout(()=>{ resetGame(); },1000);
+      } else {
+        alert(data.message || 'Could not update coins. Try again!');
+        setTimeout(()=>{ resetGame(); },1000);
+      }
+    })
+    .catch(err=>{
+      console.error('Error updating coins:', err);
+      setTimeout(()=>{ resetGame(); },1000);
+    });
+  }
+
+  requestAnimationFrame(loop);
+  </script>
+</body>
+</html>
