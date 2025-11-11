@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="128" height="128" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="coin">
+  <defs>
+    <radialGradient id="g" cx="35%" cy="25%">
+      <stop offset="0%" stop-color="#ffe27a"/>
+      <stop offset="60%" stop-color="#ffc107"/>
+      <stop offset="100%" stop-color="#d4a017"/>
+    </radialGradient>
+  </defs>
+  <circle cx="64" cy="64" r="54" fill="url(#g)" stroke="#c48f12" stroke-width="4"/>
+  <circle cx="64" cy="64" r="36" fill="rgba(255,255,255,0.08)"/>
+  <rect x="38" y="54" width="52" height="20" rx="10" fill="none" stroke="#c48f12" stroke-width="3"/>
+  <text x="64" y="72" font-family="Segoe UI, Tahoma, Geneva, Verdana, sans-serif" font-size="24" text-anchor="middle" fill="#fff8e1" font-weight="700">¢</text>
+</svg>
