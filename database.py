@@ -137,7 +137,7 @@ def init_db():
 
     def add_coins_to_user(user_id, amount, description="Coins earned"):
         conn = sqlite3.connect('foodapp.db')
-    c = conn.cursor()
+        c = conn.cursor()
 
     # Update wallet balance
     c.execute("UPDATE users SET coin_balance = coin_balance + ? WHERE id = ?", (amount, user_id))
