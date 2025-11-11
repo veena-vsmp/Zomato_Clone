@@ -140,12 +140,24 @@ def init_db():
         c = conn.cursor()
 
     # Update wallet balance
-    c.execute("UPDATE users SET coin_balance = coin_balance + ? WHERE id = ?", (amount, user_id))
+        c.execute("UPDATE users SET coin_balance = coin_balance + ? WHERE id = ?", (amount, user_id))
 
-    # Add transaction record
+        # Add transaction record
+        c.execute('''INSERT INTO coin_transactions (user_id, amount, transaction_type, description)
+                    VALUES (?, ?, ?, ?)''',(user_id, amount, "earn", description))
+
+        conn.commit()
+        conn.close()
+
+        
+# ✅ Define outside init_db()
+def add_coins_to_user(user_id, amount, description="Coins earned"):
+    conn = sqlite3.connect('foodapp.db')
+    c = conn.cursor()
+
+    c.execute("UPDATE users SET coin_balance = coin_balance + ? WHERE id = ?", (amount, user_id))
     c.execute('''INSERT INTO coin_transactions (user_id, amount, transaction_type, description)
-                 VALUES (?, ?, ?, ?)''',
-              (user_id, amount, "earn", description))
+                VALUES (?, ?, ?, ?)''', (user_id, amount, "earn", description))
 
     conn.commit()
     conn.close()
@@ -153,5 +165,4 @@ def init_db():
 
 if __name__ == '__main__':
     init_db()
-
     add_coins_to_user(1, 100, "Welcome bonus for signup")
