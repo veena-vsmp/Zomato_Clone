@@ -322,15 +322,15 @@ def orders():
 def games():
     return render_template('games.html')
 
-@app.route('/game/memory')
+@app.route('/games/memory')
 @login_required
-def memory_game():
-    return render_template('memory_game.html')
+def memory():
+    return render_template('memory.html')
 
-@app.route('/game/spin')
+@app.route('/game/catch')
 @login_required
-def spin_wheel():
-    return render_template('spin_wheel.html')
+def catch():
+    return render_template('catch.html')
 
 @app.route('/game/quiz')
 @login_required

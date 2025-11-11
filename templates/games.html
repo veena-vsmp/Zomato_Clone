@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Play Games - FoodHub{% endblock %}
+{% block title %}Play and Win - Zomato {% endblock %}
 
 {% block content %}
 <div class="hero">
@@ -11,17 +11,18 @@
 <div class="games-grid">
     <div class="game-card">
         <div class="game-icon">🧠</div>
+        <h3>Catch</h3>
+        <p>Use arrow keys to catch coins!</p>
+        <a href="{{ url_for('catch')}}" class="btn">Play Now</a>
+    </div>
+    <div class="game-card">
+        <div class="game-icon">🧠</div>
         <h3>Memory Match</h3>
         <p>Match pairs of food emojis and earn up to 50 coins!</p>
-        <a href="{{ url_for('memory_game') }}" class="btn">Play Now</a>
+        <a href="{{ url_for('memory')}}" class="btn">Play Now</a>
     </div>
     
-    <div class="game-card">
-        <div class="game-icon">🎰</div>
-        <h3>Lucky Spin</h3>
-        <p>Spin the wheel and win coins instantly!</p>
-        <a href="{{ url_for('spin_wheel') }}" class="btn">Play Now</a>
-    </div>
+
     
     <div class="game-card">
         <div class="game-icon">❓</div>
@@ -37,3 +38,5 @@
     <p style="color: #636e72; margin-top: 1rem;">Use coins to get discounts on your orders!</p>
 </div>
 {% endblock %}
+
+{% block footer %}{% endblock %}    
