@@ -108,42 +108,86 @@
   <div id="gameArea"><div id="basket"></div></div>
   <p id="score">Score: 0</p>
   <script>
-    const basket = document.getElementById("basket");
-    const gameArea = document.getElementById("gameArea");
-    const scoreDisplay = document.getElementById("score");
-    let basketX = 120, score = 0, gameInterval;
-    document.addEventListener("keydown", e => {
-      if (e.key === "ArrowLeft" && basketX > 0) basketX -= 20;
-      if (e.key === "ArrowRight" && basketX < 240) basketX += 20;
-      basket.style.left = basketX + "px";
-    });
-    startGame();
-    function startGame() {
-      gameInterval = setInterval(() => {
-        const coin = document.createElement("div");
-        coin.classList.add("coin");
-        coin.style.left = Math.random() * 280 + "px";
-        gameArea.appendChild(coin);
-        let coinTop = 0;
-        const fall = setInterval(() => {
-          coinTop += 5; coin.style.top = coinTop + "px";
-          if (coinTop > 360) {
-            if (parseInt(coin.style.left) > basketX - 20 && parseInt(coin.style.left) < basketX + 60) {
-              score++; scoreDisplay.textContent = "Score: " + score; coin.remove(); clearInterval(fall);
-            } else if (coinTop > 380) { coin.remove(); clearInterval(fall); }
+  const basket = document.getElementById("basket");
+  const gameArea = document.getElementById("gameArea");
+  const scoreDisplay = document.getElementById("score");
+
+  let basketX = 120, score = 0, gameInterval;
+
+  // 🕹️ Move basket with arrow keys
+  document.addEventListener("keydown", e => {
+    if (e.key === "ArrowLeft" && basketX > 0) basketX -= 20;
+    if (e.key === "ArrowRight" && basketX < 240) basketX += 20;
+    basket.style.left = basketX + "px";
+  });
+
+  // 🏁 Start the game
+  startGame();
+
+  function startGame() {
+    gameInterval = setInterval(() => {
+      const coin = document.createElement("div");
+      coin.classList.add("coin");
+      coin.style.left = Math.random() * 280 + "px";
+      gameArea.appendChild(coin);
+
+      let coinTop = 0;
+      const fall = setInterval(() => {
+        coinTop += 5;
+        coin.style.top = coinTop + "px";
+
+        // Check if coin reaches basket
+        if (coinTop > 360) {
+          const coinLeft = parseInt(coin.style.left);
+          if (coinLeft > basketX - 20 && coinLeft < basketX + 60) {
+            score++;
+            scoreDisplay.textContent = "Score: " + score;
+            coin.remove();
+            clearInterval(fall);
+          } else if (coinTop > 380) {
+            coin.remove();
+            clearInterval(fall);
           }
-        }, 50);
-      }, 800);
-      setTimeout(() => {
-        clearInterval(gameInterval);
-        alert("Game Over! You caught " + score + " coins!");
-        var coin_balance = coin_balance + score;
-        let total = parseInt(localStorage.getItem("supercoins") || 0);
-        total += score;
-        localStorage.setItem("supercoins", total);
-        window.close();
-      }, 15000);
-    }
+        }
+      }, 50);
+    }, 800);
+
+    // ⏰ Stop game after 15 seconds
+    setTimeout(() => {
+      clearInterval(gameInterval);
+      endGame();
+    }, 15000);
+  }
+
+  // 🎯 When game ends
+  function endGame() {
+    alert("Game Over! 🪙 You caught " + score + " coins!");
+    // ✅ Update backend wallet
+    updateCoinsToWallet(score);
+  }
+
+  // 🪙 Send score to Flask backend
+  function updateCoinsToWallet(score) {
+    fetch('/api/game/complete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        game_type: 'catch',
+        score: score
+      })
+    })
+    .then(res => res.json())
+    .then(data => {
+      if (data.success) {
+        alert(`🎉 You earned ${data.coins_earned} coins!\nYour new balance: 🪙 ${data.new_balance}`);
+        window.location.href = "/games";  // redirect to Play page
+      } else {
+        alert(data.message || "Could not update coins. Try again!");
+      }
+    })
+    .catch(err => console.error("Error updating coins:", err));
+  }
+
   </script>
 </body>
 </html>

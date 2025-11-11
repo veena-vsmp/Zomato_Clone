@@ -337,32 +337,50 @@ def catch():
 def quiz_game():
     return render_template('quiz_game.html')
 
+
 @app.route('/api/game/complete', methods=['POST'])
 @login_required
 def complete_game():
     data = request.get_json()
     game_type = data.get('game_type')
-    score = data.get('score', 0)
+    score = int(data.get('score', 0))  # ensure integer
     
-    coins_earned = 0
+    # 🧮 Define earning logic
     if game_type == 'memory':
-        coins_earned = min(score * 5, 50)
+        coins_earned = min(score * 5, 50)  # Max 50
     elif game_type == 'spin':
         coins_earned = score
     elif game_type == 'quiz':
         coins_earned = score * 10
-    
+    elif game_type == 'catch':
+        coins_earned = min(score, 100)  # e.g., max 100 coins for catch game
+    else:
+        coins_earned = 0
+
+    if coins_earned <= 0:
+        return jsonify({'success': False, 'message': 'No coins earned'}), 400
+
     conn = get_db()
     conn.execute('UPDATE users SET coin_balance = coin_balance + ? WHERE id = ?', 
-                (coins_earned, current_user.id))
+                 (coins_earned, current_user.id))
     conn.execute('INSERT INTO coin_transactions (user_id, amount, transaction_type, description) VALUES (?, ?, ?, ?)',
-                (current_user.id, coins_earned, 'earned', f'Earned from {game_type} game'))
+                 (current_user.id, coins_earned, 'earned', f'Earned from {game_type} game'))
     conn.commit()
     
-    new_balance = conn.execute('SELECT coin_balance FROM users WHERE id = ?', (current_user.id,)).fetchone()['coin_balance']
+    user = conn.execute('SELECT coin_balance FROM users WHERE id = ?', (current_user.id,)).fetchone()
+    new_balance = user['coin_balance']
     conn.close()
-    
-    return jsonify({'success': True, 'coins_earned': coins_earned, 'new_balance': new_balance})
+
+    # 🔄 Update session coin balance in real time
+    session['user_coin_balance'] = new_balance
+
+    return jsonify({
+        'success': True,
+        'coins_earned': coins_earned,
+        'new_balance': new_balance,
+        'message': f'You earned {coins_earned} coins!'
+    })
+
 
 @app.route('/wallet')
 @login_required

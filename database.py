@@ -154,4 +154,4 @@ def init_db():
 if __name__ == '__main__':
     init_db()
 
-     add_coins_to_user(1, 100, "Welcome bonus for signup")
+    add_coins_to_user(1, 100, "Welcome bonus for signup")

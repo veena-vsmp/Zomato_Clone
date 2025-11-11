@@ -203,6 +203,7 @@
           if (matchedCards === cards.length) {
             document.getElementById("message").innerText =
               "🎉 You matched all cards! You win 10 SuperCoins 🪙";
+              updateCoinsToWallet(10);
           }
         } else {
           setTimeout(() => {
@@ -222,6 +223,31 @@
     }
 
     createCards();
+
+
+    function updateCoinsToWallet(score) {
+  // Send a POST request to Flask backend
+  fetch('/api/game/complete', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      game_type: 'memory', // identifies which game
+      score: score         // your score (here: 10 coins for finishing)
+    })
+  })
+  .then(res => res.json())
+  .then(data => {
+    if (data.success) {
+      alert(`🎉 You earned ${data.coins_earned} coins!\n Your new balance: 🪙 ${data.new_balance}`);
+      // redirect to Play page to see updated balance
+      window.location.href = "/games";
+    } else {
+      alert(data.message || "Could not update coins. Try again!");
+    }
+  })
+  .catch(err => console.error("Error updating coins:", err));
+}
+
   </script>
 </body>
 </html>
