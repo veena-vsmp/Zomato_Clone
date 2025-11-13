@@ -5,7 +5,53 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Zomato - Gamified Food Ordering{% endblock %}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+
+    <style>
+        /* 🍽️ Header Section Like Zomato */
+        .hero-header {
+            background-image: url("/static/home_images/bg.jpg"); /* your food image path */
+            background-size: cover;
+            background-position: center;
+            height: 400px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            text-align: center;
+            position: relative;
+        }
+
+        .hero-header::after {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5); /* dark overlay for better text contrast */
+            z-index: 0;
+        }
+
+        .hero-header-content {
+            position: relative;
+            z-index: 1;
+        }
+
+        .hero-header h1 {
+            font-size: 3rem;
+            font-weight: bold;
+            margin-bottom: 0.5rem;
+        }
+
+        .hero-header p {
+            font-size: 1.2rem;
+            margin-bottom: 1.5rem;
+        }
+
+    </style>
 </head>
+
 <script>
 function goBack() {
     if (document.referrer && document.referrer !== window.location.href) {
@@ -15,11 +61,14 @@ function goBack() {
     }
 }
 </script>
-<body>
-    <button onclick="goBack()" class="back-btn" style="position: fixed; top: 10px; left: 10px;">← Back</button>
 
+<body>
+    <button onclick="goBack()" class="back-btn">← Back</button>
+
+    <!-- 🔴 Existing Navbar (kept same) -->
     <nav class="navbar">
         <div class="navbar-content">
+          
             <h1><a href="{{ url_for('index') }}">Zomato </a></h1>
             <div class="nav-links">
                 {% if current_user.is_authenticated %}
@@ -39,6 +88,15 @@ function goBack() {
         </div>
     </nav>
 
+    <!-- 🍴 New Hero Section with Background Image -->
+    <header class="hero-header">
+        <div class="hero-header-content">
+            <h1>Zomato</h1>
+            
+          </div>
+    </header>
+
+    <!-- Main container -->
     <div class="container">
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
@@ -51,12 +109,9 @@ function goBack() {
         {% block content %}{% endblock %}
     </div>
 
-
 {% block footer %}
-    <!--Footer Section-->
 <footer class="zomato-footer">
   <div class="footer-container">
-    <!-- Company Section -->
     <div class="footer-section">
       <h4>Company</h4>
       <ul>
@@ -67,7 +122,6 @@ function goBack() {
       </ul>
     </div>
 
-    <!-- For Restaurants -->
     <div class="footer-section">
       <h4>For Restaurants</h4>
       <ul>
@@ -81,7 +135,6 @@ function goBack() {
       </ul>
     </div>
 
-    <!-- For You -->
     <div class="footer-section">
       <h4>For You</h4>
       <ul>
@@ -92,7 +145,6 @@ function goBack() {
       </ul>
     </div>
 
-    <!-- Social Links -->
     <div class="footer-section">
       <h4>Social Links</h4>
       <div class="social-icons">

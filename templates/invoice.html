@@ -52,9 +52,18 @@
             </tbody>
         </table>
 
+        {% set cgst = order.total_amount * 0.09 %}
+        {% set sgst = order.total_amount * 0.09 %}
+        {% set total_with_tax = order.total_amount + cgst + sgst %}
+        {% set final_amount = total_with_tax - order.coins_used %}
+
         <p class="total">Total Amount: ₹{{ "%.2f"|format(order.total_amount) }}</p>
+        <p class="total">CGST (9%): ₹{{ "%.2f"|format(cgst) }}</p>
+        <p class="total">SGST (9%): ₹{{ "%.2f"|format(sgst) }}</p>
+        <p class="total">Total with Tax: ₹{{ "%.2f"|format(total_with_tax) }}</p>
         <p class="total">Coins Used: {{ order.coins_used }}</p>
-        <p class="total">Final Amount: ₹{{ "%.2f"|format(order.final_amount) }}</p>
+        <p class="total">Final Amount: ₹{{ "%.2f"|format(final_amount) }}</p>
+
         <p style="margin-top: 2rem;">Thank you for ordering with Zomato!</p>
     </div>
 </body>
