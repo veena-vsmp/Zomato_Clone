@@ -101,25 +101,42 @@ def register():
     
     return render_template('register.html')
 
+
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
-        username = request.form.get('username')
-        password = request.form.get('password')
-        
+        username = request.form['username']
+        password = request.form['password']
+
         conn = get_db()
-        user = conn.execute('SELECT * FROM users WHERE username = ?', (username,)).fetchone()
+        user = conn.execute('SELECT * FROM users WHERE username = ? OR email = ?', 
+                            (username, username)).fetchone()
         conn.close()
-        
+
         if user and check_password_hash(user['password'], password):
             user_obj = User(user['id'], user['username'], user['email'], user['coin_balance'])
             login_user(user_obj)
-            flash('Login successful!', 'success')
-            return redirect(url_for('index'))
+
+            # 🔹 Admin check (change email to yours)
+            if user['email'] == "veenamalipatil279@gmail.com":
+                return redirect(url_for('admin_dashboard'))
+            else:
+                return redirect(url_for('index'))
         else:
-            flash('Invalid username or password!', 'error')
-    
+            flash('Invalid credentials', 'error')
+
     return render_template('login.html')
+
+@app.route('/admin_dashboard')
+@login_required
+def admin_dashboard():
+    admin = {
+        "name": "Veenamalipatilr",
+        "email": "veenamalipatil279@gmail.com",
+        "role": "Administrator"
+    }
+    return render_template('admin_dashboard.html', admin=admin)
+
 
 @app.route('/logout')
 @login_required
@@ -251,13 +268,10 @@ def checkout():
             conn.close()
             return redirect(url_for('checkout'))
         
-        # Limit to 10% of total (converted to coins since 100 coins = $1)
-        max_allowed_coins = int(total * 0.1 * 100)
-        if coins_to_use > max_allowed_coins:
-            coins_to_use = max_allowed_coins
-
+        if coins_to_use > total:
+            coins_to_use = int(total)
         
-        final_amount = total - (coins_to_use / 100)
+        final_amount = total - coins_to_use
         
         cursor = conn.execute('''INSERT INTO orders (user_id, restaurant_id, total_amount, coins_used, final_amount, status, delivery_address) 
                                 VALUES (?, ?, ?, ?, ?, ?, ?)''',
@@ -275,8 +289,7 @@ def checkout():
             conn.execute('INSERT INTO coin_transactions (user_id, amount, transaction_type, description) VALUES (?, ?, ?, ?)',
                         (current_user.id, -coins_to_use, 'spent', f'Used on order #{order_id}'))
         
-        cashback_coins = int(total * 0.05 * 100)  # 5% cashback in coins
-
+        cashback_coins = int(total * 0.05)
         conn.execute('UPDATE users SET coin_balance = coin_balance + ? WHERE id = ?', (cashback_coins, current_user.id))
         conn.execute('INSERT INTO coin_transactions (user_id, amount, transaction_type, description) VALUES (?, ?, ?, ?)',
                     (current_user.id, cashback_coins, 'earned', f'Cashback from order #{order_id}'))
