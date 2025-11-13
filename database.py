@@ -184,4 +184,5 @@ def add_coins_to_user(user_id, amount, description="Coins earned"):
 
 if __name__ == '__main__':
     init_db()
-    add_coins_to_user(1, 100, "Welcome bonus for signup")
+    add_coins_to_user(1, 100, "Initial bonus coins")    
+    

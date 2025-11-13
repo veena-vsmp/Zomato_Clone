@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}My Orders - FoodHub{% endblock %}
+{% block title %}My Orders - Zomato{% endblock %}
 
 {% block content %}
 <h2 style="margin-bottom: 1.5rem;">My Orders</h2>
@@ -19,7 +19,7 @@
             <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem;">
                 <div>
                     <p style="color: #636e72; font-size: 0.9rem;">Total Amount</p>
-                    <p style="font-size: 1.2rem; font-weight: bold;">${{ "%.2f"|format(order.total_amount) }}</p>
+                    <p style="font-size: 1.2rem; font-weight: bold;">₹{{ "%.2f"|format(order.total_amount) }}</p>
                 </div>
                 <div>
                     <p style="color: #636e72; font-size: 0.9rem;">Coins Used</p>
@@ -27,13 +27,14 @@
                 </div>
                 <div>
                     <p style="color: #636e72; font-size: 0.9rem;">Final Amount</p>
-                    <p style="font-size: 1.2rem; font-weight: bold; color: #2ecc71;">${{ "%.2f"|format(order.final_amount) }}</p>
+                    <p style="font-size: 1.2rem; font-weight: bold; color: #2ecc71;">₹{{ "%.2f"|format(order.final_amount) }}</p>
                 </div>
             </div>
             
             <p style="margin-top: 1rem; color: #636e72;">
                 📍 {{ order.delivery_address }}
             </p>
+            <a href="{{ url_for('invoice', order_id=order.id) }}" class="btn" target="_blank" style="margin-top: 0.5rem; display: inline-block;">View Invoice</a>
         </div>
     {% endfor %}
 {% else %}
