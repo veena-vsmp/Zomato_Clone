@@ -1,19 +1,132 @@
-{% block title %}Admin Dashboard{% endblock %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Admin Dashboard</title>
+    <style>
+        .vendor-table, .inner-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 20px;
+    }
 
-{% block content %}
-<h2>Welcome, Admin!</h2>
-<p>This is your dashboard page.</p>
+    .vendor-table th, .vendor-table td,
+    .inner-table th, .inner-table td {
+        border: 1px solid #ddd;
+        padding: 10px;
+        text-align: center;
+    }
 
-<div style="margin-top: 2rem;">
-    <h3>Admin Details</h3>
-    <ul>
-        <li><b>Email:</b> {{ user_email }}</li>
-        <li><b>Role:</b> {{ admin.role }}</li>
-        <li><b>Access Level:</b> {{ admin.access_level }}</li>
-        <li><b>Can Manage Users:</b> {{ admin.can_manage_users }}</li>
-        <li><b>Can View Reports:</b> {{ admin.can_view_reports }}</li>
-    </ul>
-</div>
+    .vendor-table th {
+        background-color: #f4f4f4;
+    }
 
-<a href="{{ url_for('logout') }}" class="btn" style="margin-top: 2rem;">Logout</a>
-{% endblock %}
+    .inner-table th {
+        background-color: #fafafa;
+    }
+
+    button {
+        background-color: #1976d2;
+        color: white;
+        padding: 6px 10px;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+    }
+
+    button:hover {
+        background-color: #0d47a1;
+    }
+
+    tr#orders td {
+        background-color: #fffbe6;
+    }
+    </style>    
+    <script>
+        function toggleOrders(id) {
+            const section = document.getElementById('orders-' + id);
+            section.style.display = (section.style.display === 'none' || section.style.display === '') ? 'table-row' : 'none';
+        }
+    </script>
+</head>
+<body>
+    <div class="dashboard-container">
+        <h1>Admin Dashboard</h1>
+
+        <section class="admin-info">
+            <h2>Welcome, {{ admin.name }}</h2>
+            <p><strong>Email:</strong> {{ admin.email }}</p>
+            <p><strong>Role:</strong> {{ admin.role }}</p>
+        </section>
+
+        <hr>
+
+        <section class="vendor-section">
+            <h2>Restaurants & Vendor Analytics</h2>
+
+            {% if restaurants %}
+            <table class="vendor-table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Restaurant</th>
+                        <th>Cuisine</th>
+                        <th>Location</th>
+                        <th>Total Orders</th>
+                        <th>Total Revenue (₹)</th>
+                        <th>Details</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for r in restaurants %}
+                    <tr>
+                        <td>{{ r.id }}</td>
+                        <td>{{ r.name }}</td>
+                        <td>{{ r.cuisine }}</td>
+                        <td>{{ r.location }}</td>
+                        <td>{{ r.total_orders }}</td>
+                        <td>{{ "%.2f"|format(r.total_revenue) }}</td>
+                        <td><button onclick="toggleOrders('{{ r.id }}')">View Orders</button></td>
+                    </tr>
+                    <tr id="orders-{{ r.id }}" style="display:none;">
+                        <td colspan="7">
+                            {% if r.recent_orders %}
+                            <table class="inner-table">
+                                <thead>
+                                    <tr>
+                                        <th>Order ID</th>
+                                        <th>User</th>
+                                        <th>Total (₹)</th>
+                                        <th>Final (₹)</th>
+                                        <th>Status</th>
+                                        <th>Date</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for o in r.recent_orders %}
+                                    <tr>
+                                        <td>{{ o['order_id'] }}</td>
+                                        <td>{{ o['username'] }}</td>
+                                        <td>{{ o['total_amount'] }}</td>
+                                        <td>{{ o['final_amount'] }}</td>
+                                        <td>{{ o['status'] }}</td>
+                                        <td>{{ o['created_at'] }}</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                            {% else %}
+                            <p>No orders yet for this restaurant.</p>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+                <p>No restaurants found.</p>
+            {% endif %}
+        </section>
+    </div>
+</body>
+</html>

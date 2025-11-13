@@ -135,7 +135,48 @@ def admin_dashboard():
         "email": "veenamalipatil279@gmail.com",
         "role": "Administrator"
     }
-    return render_template('admin_dashboard.html', admin=admin)
+
+    conn = sqlite3.connect('foodapp.db')
+    conn.row_factory = sqlite3.Row
+    c = conn.cursor()
+
+    # Fetch all restaurants (vendors)
+    restaurants = c.execute('SELECT id, name, cuisine, location FROM restaurants ORDER BY name').fetchall()
+
+    restaurant_data = []
+
+    for r in restaurants:
+        # Count orders for each restaurant
+        order_stats = c.execute('''
+            SELECT COUNT(*) AS total_orders, 
+                   COALESCE(SUM(final_amount), 0) AS total_revenue
+            FROM orders 
+            WHERE restaurant_id = ?
+        ''', (r['id'],)).fetchone()
+
+        # Get last 5 orders
+        recent_orders = c.execute('''
+            SELECT o.id AS order_id, u.username, o.total_amount, o.final_amount, o.created_at, o.status
+            FROM orders o
+            JOIN users u ON o.user_id = u.id
+            WHERE o.restaurant_id = ?
+            ORDER BY o.created_at DESC
+            LIMIT 5
+        ''', (r['id'],)).fetchall()
+
+        restaurant_data.append({
+            'id': r['id'],
+            'name': r['name'],
+            'cuisine': r['cuisine'],
+            'location': r['location'],
+            'total_orders': order_stats['total_orders'],
+            'total_revenue': order_stats['total_revenue'],
+            'recent_orders': recent_orders
+        })
+
+    conn.close()
+
+    return render_template('admin_dashboard.html', admin=admin, restaurants=restaurant_data)
 
 
 @app.route('/logout')
@@ -419,6 +460,56 @@ def inject_user():
         conn.close()
         return {'user_coin_balance': user['coin_balance'] if user else 0}
     return {'user_coin_balance': 0}
+
+# Vendor Registration Form
+@app.route('/vendor_register', methods=['GET', 'POST'])
+def vendor_register():
+    if request.method == 'POST':
+        data = (
+            request.form['restaurant_name'],
+            request.form['owner_name'],
+            request.form['email'],
+            request.form['phone'],
+            request.form['address'],
+            request.form['cuisine_type']
+        )
+
+        conn = sqlite3.connect('foodapp.db')
+        c = conn.cursor()
+        try:
+            c.execute('''INSERT INTO vendors 
+                        (restaurant_name, owner_name, email, phone, address, cuisine_type) 
+                        VALUES (?, ?, ?, ?, ?, ?)''', data)
+            conn.commit()
+            flash('Your restaurant has been submitted for admin approval!', 'success')
+        except sqlite3.IntegrityError:
+            flash('Email already registered!', 'danger')
+        finally:
+            conn.close()
+
+        return redirect(url_for('vendor_register'))
+    return render_template('vendor_register.html')
+
+# Admin Dashboard – View All Vendors
+@app.route('/admin/vendors')
+def admin_vendors():
+    conn = sqlite3.connect('foodapp.db')
+    c = conn.cursor()
+    c.execute('SELECT * FROM vendors')
+    vendors = c.fetchall()
+    conn.close()
+    return render_template('admin_dashboard.html', vendors=vendors)
+
+# Approve Vendor
+@app.route('/approve_vendor/<int:vendor_id>')
+def approve_vendor(vendor_id):
+    conn = sqlite3.connect('foodapp.db')
+    c = conn.cursor()
+    c.execute('UPDATE vendors SET status="Approved" WHERE id=?', (vendor_id,))
+    conn.commit()
+    conn.close()
+    flash('Vendor approved successfully!', 'success')
+    return redirect(url_for('admin_vendors'))
 
 if __name__ == '__main__':
     app.run(host='127.0.0.1', port=5002, debug=True)
