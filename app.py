@@ -251,10 +251,13 @@ def checkout():
             conn.close()
             return redirect(url_for('checkout'))
         
-        if coins_to_use > total:
-            coins_to_use = int(total)
+        # Limit to 10% of total (converted to coins since 100 coins = $1)
+        max_allowed_coins = int(total * 0.1 * 100)
+        if coins_to_use > max_allowed_coins:
+            coins_to_use = max_allowed_coins
+
         
-        final_amount = total - coins_to_use
+        final_amount = total - (coins_to_use / 100)
         
         cursor = conn.execute('''INSERT INTO orders (user_id, restaurant_id, total_amount, coins_used, final_amount, status, delivery_address) 
                                 VALUES (?, ?, ?, ?, ?, ?, ?)''',
@@ -272,7 +275,8 @@ def checkout():
             conn.execute('INSERT INTO coin_transactions (user_id, amount, transaction_type, description) VALUES (?, ?, ?, ?)',
                         (current_user.id, -coins_to_use, 'spent', f'Used on order #{order_id}'))
         
-        cashback_coins = int(total * 0.05)
+        cashback_coins = int(total * 0.05 * 100)  # 5% cashback in coins
+
         conn.execute('UPDATE users SET coin_balance = coin_balance + ? WHERE id = ?', (cashback_coins, current_user.id))
         conn.execute('INSERT INTO coin_transactions (user_id, amount, transaction_type, description) VALUES (?, ?, ?, ?)',
                     (current_user.id, cashback_coins, 'earned', f'Cashback from order #{order_id}'))
