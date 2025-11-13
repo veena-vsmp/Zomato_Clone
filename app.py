@@ -101,25 +101,42 @@ def register():
     
     return render_template('register.html')
 
+
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
-        username = request.form.get('username')
-        password = request.form.get('password')
-        
+        username = request.form['username']
+        password = request.form['password']
+
         conn = get_db()
-        user = conn.execute('SELECT * FROM users WHERE username = ?', (username,)).fetchone()
+        user = conn.execute('SELECT * FROM users WHERE username = ? OR email = ?', 
+                            (username, username)).fetchone()
         conn.close()
-        
+
         if user and check_password_hash(user['password'], password):
             user_obj = User(user['id'], user['username'], user['email'], user['coin_balance'])
             login_user(user_obj)
-            flash('Login successful!', 'success')
-            return redirect(url_for('index'))
+
+            # 🔹 Admin check (change email to yours)
+            if user['email'] == "veenamalipatil279@gmail.com":
+                return redirect(url_for('admin_dashboard'))
+            else:
+                return redirect(url_for('index'))
         else:
-            flash('Invalid username or password!', 'error')
-    
+            flash('Invalid credentials', 'error')
+
     return render_template('login.html')
+
+@app.route('/admin_dashboard')
+@login_required
+def admin_dashboard():
+    admin = {
+        "name": "Veenamalipatilr",
+        "email": "veenamalipatil279@gmail.com",
+        "role": "Administrator"
+    }
+    return render_template('admin_dashboard.html', admin=admin)
+
 
 @app.route('/logout')
 @login_required
