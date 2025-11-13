@@ -140,23 +140,37 @@ def admin_dashboard():
     conn.row_factory = sqlite3.Row
     c = conn.cursor()
 
-    # Fetch all restaurants (vendors)
-    restaurants = c.execute('SELECT id, name, cuisine, location FROM restaurants ORDER BY name').fetchall()
+    # --- Overall analytics ---
+    total_restaurants = c.execute('SELECT COUNT(*) FROM restaurants').fetchone()[0]
+    total_orders = c.execute('SELECT COUNT(*) FROM orders').fetchone()[0]
+    total_revenue = c.execute('SELECT COALESCE(SUM(final_amount), 0) FROM orders').fetchone()[0]
 
+    # --- Top restaurant ---
+    top_restaurant = c.execute('''
+        SELECT r.name, COUNT(o.id) AS total_orders, COALESCE(SUM(o.final_amount), 0) AS total_revenue
+        FROM orders o
+        JOIN restaurants r ON o.restaurant_id = r.id
+        GROUP BY o.restaurant_id
+        ORDER BY total_orders DESC
+        LIMIT 1
+    ''').fetchone()
+
+    top_restaurant_name = top_restaurant['name'] if top_restaurant else "No orders yet"
+    top_restaurant_orders = top_restaurant['total_orders'] if top_restaurant else 0
+    top_restaurant_revenue = top_restaurant['total_revenue'] if top_restaurant else 0.0
+
+    # --- Restaurant-wise stats ---
+    restaurants = c.execute('SELECT id, name, cuisine, location FROM restaurants ORDER BY name').fetchall()
     restaurant_data = []
 
     for r in restaurants:
-        # Count orders for each restaurant
-        order_stats = c.execute('''
-            SELECT COUNT(*) AS total_orders, 
-                   COALESCE(SUM(final_amount), 0) AS total_revenue
-            FROM orders 
-            WHERE restaurant_id = ?
+        stats = c.execute('''
+            SELECT COUNT(*) AS total_orders, COALESCE(SUM(final_amount), 0) AS total_revenue
+            FROM orders WHERE restaurant_id = ?
         ''', (r['id'],)).fetchone()
 
-        # Get last 5 orders
         recent_orders = c.execute('''
-            SELECT o.id AS order_id, u.username, o.total_amount, o.final_amount, o.created_at, o.status
+            SELECT o.id AS order_id, u.username, o.total_amount, o.final_amount, o.status, o.created_at
             FROM orders o
             JOIN users u ON o.user_id = u.id
             WHERE o.restaurant_id = ?
@@ -169,14 +183,25 @@ def admin_dashboard():
             'name': r['name'],
             'cuisine': r['cuisine'],
             'location': r['location'],
-            'total_orders': order_stats['total_orders'],
-            'total_revenue': order_stats['total_revenue'],
+            'total_orders': stats['total_orders'],
+            'total_revenue': stats['total_revenue'],
             'recent_orders': recent_orders
         })
 
     conn.close()
 
-    return render_template('admin_dashboard.html', admin=admin, restaurants=restaurant_data)
+    # ✅ Return all analytics data to template
+    return render_template(
+        'admin_dashboard.html',
+        admin=admin,
+        restaurants=restaurant_data,
+        total_restaurants=total_restaurants,
+        total_orders=total_orders,
+        total_revenue=total_revenue,
+        top_restaurant_name=top_restaurant_name,
+        top_restaurant_orders=top_restaurant_orders,
+        top_restaurant_revenue=top_restaurant_revenue
+    )
 
 
 @app.route('/logout')

@@ -4,44 +4,113 @@
     <meta charset="UTF-8">
     <title>Admin Dashboard</title>
     <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #fafafa;
+            margin: 20px;
+        }
+
+        h1 {
+            text-align: center;
+            color: #333;
+        }
+
+        .dashboard-container {
+            max-width: 1200px;
+            margin: auto;
+            background: #fff;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .analytics-container {
+            display: flex;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            margin-bottom: 25px;
+            gap: 15px;
+        }
+
+        .card {
+            background: #f4f4f4;
+            border-radius: 10px;
+            padding: 15px;
+            flex: 1;
+            min-width: 220px;
+            text-align: center;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+            transition: transform 0.2s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-4px);
+        }
+
+        .card h3 {
+            margin: 5px 0;
+            color: #1976d2;
+        }
+
+        .card p {
+            font-size: 1.4em;
+            font-weight: bold;
+            color: #333;
+        }
+
+        .highlight {
+            background-color: #1976d2;
+            color: white;
+        }
+
+        .highlight h3 {
+            color: #fff;
+        }
+
         .vendor-table, .inner-table {
-    width: 100%;
-    border-collapse: collapse;
-    margin-top: 20px;
-    }
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
 
-    .vendor-table th, .vendor-table td,
-    .inner-table th, .inner-table td {
-        border: 1px solid #ddd;
-        padding: 10px;
-        text-align: center;
-    }
+        .vendor-table th, .vendor-table td,
+        .inner-table th, .inner-table td {
+            border: 1px solid #ddd;
+            padding: 10px;
+            text-align: center;
+        }
 
-    .vendor-table th {
-        background-color: #f4f4f4;
-    }
+        .vendor-table th {
+            background-color: #f4f4f4;
+        }
 
-    .inner-table th {
-        background-color: #fafafa;
-    }
+        .inner-table th {
+            background-color: #fafafa;
+        }
 
-    button {
-        background-color: #1976d2;
-        color: white;
-        padding: 6px 10px;
-        border: none;
-        border-radius: 5px;
-        cursor: pointer;
-    }
+        button {
+            background-color: #1976d2;
+            color: white;
+            padding: 6px 10px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
 
-    button:hover {
-        background-color: #0d47a1;
-    }
+        button:hover {
+            background-color: #0d47a1;
+        }
 
-    tr#orders td {
-        background-color: #fffbe6;
-    }
+        tr#orders td {
+            background-color: #fffbe6;
+        }
+
+        hr {
+            margin: 25px 0;
+            border: 1px solid #e0e0e0;
+        }
     </style>    
+
     <script>
         function toggleOrders(id) {
             const section = document.getElementById('orders-' + id);
@@ -54,12 +123,33 @@
         <h1>Admin Dashboard</h1>
 
         <section class="admin-info">
-            <h2>Welcome, {{ admin.name }}</h2>
+            <h2>Welcome, Admin </h2>
             <p><strong>Email:</strong> {{ admin.email }}</p>
             <p><strong>Role:</strong> {{ admin.role }}</p>
         </section>
 
         <hr>
+
+        <!-- 🔹 Move Analytics Above the Table -->
+        <div class="analytics-container">
+            <div class="card">
+                <h3>Total Restaurants</h3>
+                <p>{{ total_restaurants }}</p>
+            </div>
+            <div class="card">
+                <h3>Total Orders</h3>
+                <p>{{ total_orders }}</p>
+            </div>
+            <div class="card">
+                <h3>Total Revenue (₹)</h3>
+                <p>{{ "%.2f"|format(total_revenue) }}</p>
+            </div>
+            <div class="card highlight">
+                <h3>Top Restaurant</h3>
+                <p>{{ top_restaurant_name }}</p>
+                <small>{{ top_restaurant_orders }} orders | ₹{{ "%.2f"|format(top_restaurant_revenue) }}</small>
+            </div>
+        </div>
 
         <section class="vendor-section">
             <h2>Restaurants & Vendor Analytics</h2>
