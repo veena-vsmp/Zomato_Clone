@@ -183,7 +183,7 @@ def add_to_cart():
     
     session['cart'] = cart
     flash('Item added to cart!', 'success')
-    return redirect(request.referrer)
+    return redirect(url_for('cart'))
 
 @app.route('/cart')
 @login_required
