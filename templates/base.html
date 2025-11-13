@@ -6,7 +6,18 @@
     <title>{% block title %}Zomato - Gamified Food Ordering{% endblock %}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
+<script>
+function goBack() {
+    if (document.referrer && document.referrer !== window.location.href) {
+        window.history.back();
+    } else {
+        window.location.href = "{{ url_for('index') }}"; // fallback to home page
+    }
+}
+</script>
 <body>
+    <button onclick="goBack()" class="back-btn">← Back</button>
+
     <nav class="navbar">
         <div class="navbar-content">
             <h1><a href="{{ url_for('index') }}">Zomato </a></h1>
