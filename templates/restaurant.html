@@ -44,7 +44,7 @@
                                 <form method="POST" action="{{ url_for('add_to_cart') }}" class="add-to-cart-form">
                                     <input type="hidden" name="item_id" value="{{ item.id }}">
                                     <input type="number" name="quantity" value="1" min="1" max="10" class="quantity-input">
-                                    <button type="submit" class="btn btn-sm">Add to Cart</button>
+                                    <a href="{{ url_for('cart') }}"><button type="submit" class="btn btn-sm">Add to Cart</button></a>
                                 </form>
                             {% else %}
                                 <a href="{{ url_for('login') }}" class="btn btn-sm">Login to Order</a>

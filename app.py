@@ -135,7 +135,73 @@ def admin_dashboard():
         "email": "veenamalipatil279@gmail.com",
         "role": "Administrator"
     }
-    return render_template('admin_dashboard.html', admin=admin)
+
+    conn = sqlite3.connect('foodapp.db')
+    conn.row_factory = sqlite3.Row
+    c = conn.cursor()
+
+    # --- Overall analytics ---
+    total_restaurants = c.execute('SELECT COUNT(*) FROM restaurants').fetchone()[0]
+    total_orders = c.execute('SELECT COUNT(*) FROM orders').fetchone()[0]
+    total_revenue = c.execute('SELECT COALESCE(SUM(final_amount), 0) FROM orders').fetchone()[0]
+
+    # --- Top restaurant ---
+    top_restaurant = c.execute('''
+        SELECT r.name, COUNT(o.id) AS total_orders, COALESCE(SUM(o.final_amount), 0) AS total_revenue
+        FROM orders o
+        JOIN restaurants r ON o.restaurant_id = r.id
+        GROUP BY o.restaurant_id
+        ORDER BY total_orders DESC
+        LIMIT 1
+    ''').fetchone()
+
+    top_restaurant_name = top_restaurant['name'] if top_restaurant else "No orders yet"
+    top_restaurant_orders = top_restaurant['total_orders'] if top_restaurant else 0
+    top_restaurant_revenue = top_restaurant['total_revenue'] if top_restaurant else 0.0
+
+    # --- Restaurant-wise stats ---
+    restaurants = c.execute('SELECT id, name, cuisine, location FROM restaurants ORDER BY name').fetchall()
+    restaurant_data = []
+
+    for r in restaurants:
+        stats = c.execute('''
+            SELECT COUNT(*) AS total_orders, COALESCE(SUM(final_amount), 0) AS total_revenue
+            FROM orders WHERE restaurant_id = ?
+        ''', (r['id'],)).fetchone()
+
+        recent_orders = c.execute('''
+            SELECT o.id AS order_id, u.username, o.total_amount, o.final_amount, o.status, o.created_at
+            FROM orders o
+            JOIN users u ON o.user_id = u.id
+            WHERE o.restaurant_id = ?
+            ORDER BY o.created_at DESC
+            LIMIT 5
+        ''', (r['id'],)).fetchall()
+
+        restaurant_data.append({
+            'id': r['id'],
+            'name': r['name'],
+            'cuisine': r['cuisine'],
+            'location': r['location'],
+            'total_orders': stats['total_orders'],
+            'total_revenue': stats['total_revenue'],
+            'recent_orders': recent_orders
+        })
+
+    conn.close()
+
+    # ✅ Return all analytics data to template
+    return render_template(
+        'admin_dashboard.html',
+        admin=admin,
+        restaurants=restaurant_data,
+        total_restaurants=total_restaurants,
+        total_orders=total_orders,
+        total_revenue=total_revenue,
+        top_restaurant_name=top_restaurant_name,
+        top_restaurant_orders=top_restaurant_orders,
+        top_restaurant_revenue=top_restaurant_revenue
+    )
 
 
 @app.route('/logout')
@@ -183,7 +249,7 @@ def add_to_cart():
     
     session['cart'] = cart
     flash('Item added to cart!', 'success')
-    return redirect(request.referrer)
+    return redirect(url_for('cart'))
 
 @app.route('/cart')
 @login_required
@@ -233,6 +299,13 @@ def update_cart():
     
     return redirect(url_for('cart'))
 
+@app.context_processor
+def inject_cart():
+    cart = session.get('cart', {})
+    total_quantity = sum(cart.values())  # total items
+    return dict(cart_total_quantity=total_quantity)
+
+
 @app.route('/checkout', methods=['GET', 'POST'])
 @login_required
 def checkout():
@@ -240,48 +313,59 @@ def checkout():
         flash('Your cart is empty!', 'error')
         return redirect(url_for('index'))
     
+    conn = get_db()
+    cart_items = []
+    total = 0
+    restaurant_id = None
+    
+    for item_id, quantity in session['cart'].items():
+        item = conn.execute('SELECT * FROM menu_items WHERE id = ?', (item_id,)).fetchone()
+        if item:
+            if restaurant_id is None:
+                restaurant_id = item['restaurant_id']
+            cart_items.append({
+                'id': item['id'],
+                'name': item['name'],
+                'price': item['price'],
+                'quantity': quantity,
+                'subtotal': item['price'] * quantity
+            })
+            total += item['price'] * quantity
+
+# Calculate GST
+    cgst = total * 0.09
+    sgst = total * 0.09
+    gst_total = cgst + sgst
+    total_incl_gst = total + gst_total
+    
+    user = conn.execute('SELECT * FROM users WHERE id = ?', (current_user.id,)).fetchone()
+    
     if request.method == 'POST':
         address = request.form.get('address')
         coins_to_use = int(request.form.get('coins_to_use', 0))
-        
-        conn = get_db()
-        cart_items = []
-        total = 0
-        restaurant_id = None
-        
-        for item_id, quantity in session['cart'].items():
-            item = conn.execute('SELECT * FROM menu_items WHERE id = ?', (item_id,)).fetchone()
-            if item:
-                if restaurant_id is None:
-                    restaurant_id = item['restaurant_id']
-                cart_items.append({
-                    'id': item['id'],
-                    'price': item['price'],
-                    'quantity': quantity
-                })
-                total += item['price'] * quantity
-        
-        user = conn.execute('SELECT * FROM users WHERE id = ?', (current_user.id,)).fetchone()
         
         if coins_to_use > user['coin_balance']:
             flash('Insufficient coin balance!', 'error')
             conn.close()
             return redirect(url_for('checkout'))
         
-        if coins_to_use > total:
-            coins_to_use = int(total)
+        if coins_to_use > total_incl_gst:
+            coins_to_use = int(total_incl_gst)
         
-        final_amount = total - coins_to_use
+        final_amount = total_incl_gst - coins_to_use
         
+        # Save order
         cursor = conn.execute('''INSERT INTO orders (user_id, restaurant_id, total_amount, coins_used, final_amount, status, delivery_address) 
                                 VALUES (?, ?, ?, ?, ?, ?, ?)''',
-                             (current_user.id, restaurant_id, total, coins_to_use, final_amount, 'Confirmed', address))
+                             (current_user.id, restaurant_id, total_incl_gst, coins_to_use, final_amount, 'Confirmed', address))
         order_id = cursor.lastrowid
         
+        # Save order items
         for item in cart_items:
             conn.execute('INSERT INTO order_items (order_id, menu_item_id, quantity, price) VALUES (?, ?, ?, ?)',
                         (order_id, item['id'], item['quantity'], item['price']))
         
+        # Update user coins
         new_balance = user['coin_balance'] - coins_to_use
         conn.execute('UPDATE users SET coin_balance = ? WHERE id = ?', (new_balance, current_user.id))
         
@@ -301,25 +385,10 @@ def checkout():
         flash(f'Order placed successfully! You earned {cashback_coins} cashback coins!', 'success')
         return redirect(url_for('orders'))
     
-    cart_items = []
-    total = 0
-    
-    conn = get_db()
-    for item_id, quantity in session['cart'].items():
-        item = conn.execute('SELECT * FROM menu_items WHERE id = ?', (item_id,)).fetchone()
-        if item:
-            cart_items.append({
-                'name': item['name'],
-                'price': item['price'],
-                'quantity': quantity,
-                'subtotal': item['price'] * quantity
-            })
-            total += item['price'] * quantity
-    
-    user = conn.execute('SELECT * FROM users WHERE id = ?', (current_user.id,)).fetchone()
     conn.close()
     
-    return render_template('checkout.html', cart_items=cart_items, total=total, coin_balance=user['coin_balance'])
+    return render_template('checkout.html', cart_items=cart_items, total=total, cgst=cgst, sgst=sgst, total_incl_gst=total_incl_gst, coin_balance=user['coin_balance'])
+
 
 @app.route('/orders')
 @login_required
@@ -419,6 +488,67 @@ def inject_user():
         conn.close()
         return {'user_coin_balance': user['coin_balance'] if user else 0}
     return {'user_coin_balance': 0}
+
+# Vendor Registration Form
+@app.route('/vendor_register', methods=['GET', 'POST'])
+def vendor_register():
+    if request.method == 'POST':
+        data = (
+            request.form['restaurant_name'],
+            request.form['owner_name'],
+            request.form['email'],
+            request.form['phone'],
+            request.form['address'],
+            request.form['cuisine_type']
+        )
+
+        conn = sqlite3.connect('foodapp.db')
+        c = conn.cursor()
+        try:
+            c.execute('''INSERT INTO vendors 
+                        (restaurant_name, owner_name, email, phone, address, cuisine_type) 
+                        VALUES (?, ?, ?, ?, ?, ?)''', data)
+            conn.commit()
+            flash('Your restaurant has been submitted for admin approval!', 'success')
+        except sqlite3.IntegrityError:
+            flash('Email already registered!', 'danger')
+        finally:
+            conn.close()
+
+        return redirect(url_for('vendor_register'))
+    return render_template('vendor_register.html')
+
+@app.route('/invoice/<int:order_id>')
+@login_required
+def invoice(order_id):
+    conn = get_db()
+    
+    # Get order details
+    order = conn.execute('''
+        SELECT o.*, r.name AS restaurant_name, u.username, u.email
+        FROM orders o
+        JOIN restaurants r ON o.restaurant_id = r.id
+        JOIN users u ON o.user_id = u.id
+        WHERE o.id = ? AND o.user_id = ?
+    ''', (order_id, current_user.id)).fetchone()
+    
+    if not order:
+        flash('Order not found!', 'error')
+        conn.close()
+        return redirect(url_for('orders'))
+    
+    # Get order items
+    items = conn.execute('''
+        SELECT m.name, oi.quantity, oi.price, (oi.quantity * oi.price) AS subtotal
+        FROM order_items oi
+        JOIN menu_items m ON oi.menu_item_id = m.id
+        WHERE oi.order_id = ?
+    ''', (order_id,)).fetchall()
+    
+    conn.close()
+    
+    return render_template('invoice.html', order=order, items=items)
+
 
 if __name__ == '__main__':
     app.run(host='127.0.0.1', port=5002, debug=True)

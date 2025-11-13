@@ -22,9 +22,9 @@
                 <tr>
                     <td>{{ item.name }}</td>
                     <td>{{ item.restaurant }}</td>
-                    <td>${{ "%.2f"|format(item.price) }}</td>
+                    <td>₹{{ "%.2f"|format(item.price) }}</td>
                     <td>{{ item.quantity }}</td>
-                    <td>${{ "%.2f"|format(item.subtotal) }}</td>
+                    <td>₹{{ "%.2f"|format(item.subtotal) }}</td>
                     <td class="cart-actions">
                         <form method="POST" action="{{ url_for('update_cart') }}" style="display: inline;">
                             <input type="hidden" name="item_id" value="{{ item.id }}">
@@ -50,7 +50,7 @@
     <div class="total-section">
         <div class="total-row grand-total">
             <span>Total:</span>
-            <span>${{ "%.2f"|format(total) }}</span>
+            <span>₹{{ "%.2f"|format(total) }}</span>
         </div>
         <a href="{{ url_for('checkout') }}" class="btn" style="display: block; text-align: center; margin-top: 1rem; padding: 1rem; text-decoration: none;">
             Proceed to Checkout

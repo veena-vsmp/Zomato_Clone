@@ -5,7 +5,7 @@ def init_db():
     conn = sqlite3.connect('foodapp.db')
     c = conn.cursor()
 
-    
+    #user table
     c.execute('''CREATE TABLE IF NOT EXISTS users (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         username TEXT UNIQUE NOT NULL,
@@ -14,7 +14,21 @@ def init_db():
         coin_balance INTEGER DEFAULT 0,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )''')
+
+    #vendor table
+    c.execute('''CREATE TABLE IF NOT EXISTS vendors (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        restaurant_name TEXT NOT NULL,
+        owner_name TEXT NOT NULL,
+        email TEXT UNIQUE NOT NULL,
+        phone TEXT NOT NULL,
+        address TEXT NOT NULL,
+        cuisine_type TEXT,
+        status TEXT DEFAULT 'Pending',   -- Pending / Approved / Rejected
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )''')
     
+    #restaurant table
     c.execute('''CREATE TABLE IF NOT EXISTS restaurants (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT NOT NULL,
@@ -26,6 +40,7 @@ def init_db():
         description TEXT
     )''')
     
+    #menu items table
     c.execute('''CREATE TABLE IF NOT EXISTS menu_items (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         restaurant_id INTEGER NOT NULL,
@@ -38,6 +53,7 @@ def init_db():
         FOREIGN KEY (restaurant_id) REFERENCES restaurants(id)
     )''')
     
+    #orders table
     c.execute('''CREATE TABLE IF NOT EXISTS orders (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         user_id INTEGER NOT NULL,
@@ -52,6 +68,7 @@ def init_db():
         FOREIGN KEY (restaurant_id) REFERENCES restaurants(id)
     )''')
     
+    #order items table
     c.execute('''CREATE TABLE IF NOT EXISTS order_items (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         order_id INTEGER NOT NULL,
@@ -62,6 +79,7 @@ def init_db():
         FOREIGN KEY (menu_item_id) REFERENCES menu_items(id)
     )''')
     
+    #coin transactions table
     c.execute('''CREATE TABLE IF NOT EXISTS coin_transactions (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         user_id INTEGER NOT NULL,
@@ -72,6 +90,7 @@ def init_db():
         FOREIGN KEY (user_id) REFERENCES users(id)
     )''')
 
+    # Seed initial data if tables are empty
     c.execute("SELECT COUNT(*) FROM restaurants")
     if c.fetchone()[0] == 0:
         restaurants = [
@@ -134,7 +153,7 @@ def init_db():
     print("Database initialized successfully!")
 
 
-
+    #✅ Define inside init_db()
     def add_coins_to_user(user_id, amount, description="Coins earned"):
         conn = sqlite3.connect('foodapp.db')
         c = conn.cursor()
@@ -165,4 +184,5 @@ def add_coins_to_user(user_id, amount, description="Coins earned"):
 
 if __name__ == '__main__':
     init_db()
-    add_coins_to_user(1, 100, "Welcome bonus for signup")
+    add_coins_to_user(1, 100, "Initial bonus coins")    
+    
