@@ -39,7 +39,7 @@
                             <p>{{ item.description }}</p>
                         </div>
                         <div style="display: flex; align-items: center; gap: 1rem;">
-                            <span class="price">${{ "%.2f"|format(item.price) }}</span>
+                            <span class="price">₹{{ "%.2f"|format(item.price) }}</span>
                             {% if current_user.is_authenticated %}
                                 <form method="POST" action="{{ url_for('add_to_cart') }}" class="add-to-cart-form">
                                     <input type="hidden" name="item_id" value="{{ item.id }}">
