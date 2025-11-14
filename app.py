@@ -1,3 +1,4 @@
+
 from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from flask import request, jsonify, session
@@ -353,7 +354,7 @@ def checkout():
         if coins_to_use > total_incl_gst:
             coins_to_use = int(total_incl_gst)
         
-        final_amount = total_incl_gst - coins_to_use
+        final_amount = total_incl_gst - (coins_to_use / 100)
         
         # Save order
         cursor = conn.execute('''INSERT INTO orders (user_id, restaurant_id, total_amount, coins_used, final_amount, status, delivery_address) 
@@ -546,10 +547,26 @@ def invoice(order_id):
         WHERE oi.order_id = ?
     ''', (order_id,)).fetchall()
     
+    total = sum(item['subtotal'] for item in items)
+    cgst = total * 0.09
+    sgst = total * 0.09
+    total_incl_gst = total + cgst + sgst
+    coins_used = order['coins_used'] if 'coins_used' in order.keys() else 0
+    final_amount = total_incl_gst - (coins_used/100)
+
     conn.close()
     
-    return render_template('invoice.html', order=order, items=items)
-
+    return render_template(
+        'invoice.html',
+        order=order,
+        items=items,
+        total=total,
+        cgst=cgst,
+        sgst=sgst,
+        total_incl_gst=total_incl_gst,
+        coins_used=coins_used,
+        final_amount=final_amount
+    )
 
 if __name__ == '__main__':
     app.run(host='127.0.0.1', port=5002, debug=True)
