@@ -1,5 +1,9 @@
-<<<<<<< HEAD
-# app.py (cleaned & optimized)
+# app.py (Optimized, cleaned, and fully working)
+# - Clean structure
+# - Invoice HTML view + PDF download (button hidden in PDF)
+# - wkhtmltopdf auto-detection helper
+# - Proper DB connection handling and totals calculation
+
 from flask import (
     Flask, render_template, request, redirect, url_for,
     session, flash, jsonify, make_response
@@ -8,23 +12,16 @@ from flask_login import (
     LoginManager, UserMixin, login_user, logout_user,
     login_required, current_user
 )
-=======
-
-from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
-from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
-from flask import request, jsonify, session
->>>>>>> 8d9aa9bec18e4538fde18702685509282f862247
 from werkzeug.security import generate_password_hash, check_password_hash
 
 import sqlite3
 import os
-import random
-from datetime import datetime
 import shutil
 import pdfkit
+from datetime import datetime
 
 # --------------------------
-# Configuration & app init
+# App config
 # --------------------------
 app = Flask(__name__)
 app.secret_key = os.environ.get('SESSION_SECRET', 'dev-secret-key-change-in-production')
@@ -32,6 +29,7 @@ app.secret_key = os.environ.get('SESSION_SECRET', 'dev-secret-key-change-in-prod
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
+
 
 # --------------------------
 # Helper: wkhtmltopdf auto-detect
@@ -65,7 +63,8 @@ def get_pdfkit_config():
         return pdfkit.configuration(wkhtmltopdf=mac_path)
 
     # Nothing found
-    raise FileNotFoundError("wkhtmltopdf not found! Install from: https://wkhtmltopdf.org/downloads/")
+    raise FileNotFoundError("wkhtmltopdf not found! Install it: https://wkhtmltopdf.org/downloads/")
+
 
 # --------------------------
 # DB helper & user model
@@ -75,12 +74,14 @@ def get_db():
     conn.row_factory = sqlite3.Row
     return conn
 
+
 class User(UserMixin):
     def __init__(self, id, username, email, coin_balance):
         self.id = id
         self.username = username
         self.email = email
         self.coin_balance = coin_balance
+
 
 @login_manager.user_loader
 def load_user(user_id):
@@ -93,6 +94,7 @@ def load_user(user_id):
         return User(user['id'], user['username'], user['email'], user['coin_balance'])
     return None
 
+
 # --------------------------
 # Context processors
 # --------------------------
@@ -101,6 +103,7 @@ def inject_cart():
     cart = session.get('cart', {})
     total_quantity = sum(cart.values()) if cart else 0
     return dict(cart_total_quantity=total_quantity)
+
 
 @app.context_processor
 def inject_user():
@@ -113,8 +116,9 @@ def inject_user():
         return {'user_coin_balance': user['coin_balance'] if user else 0}
     return {'user_coin_balance': 0}
 
+
 # --------------------------
-# Routes: public
+# Routes: public & auth
 # --------------------------
 @app.route('/')
 def index():
@@ -144,13 +148,12 @@ def index():
     return render_template('index.html', restaurants=restaurants, cuisines=cuisines,
                            search_query=search_query, cuisine_filter=cuisine_filter)
 
+
 @app.route('/aboutus')
 def aboutus():
     return render_template('aboutus.html')
 
-# --------------------------
-# Auth
-# --------------------------
+
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     if request.method == 'POST':
@@ -186,6 +189,7 @@ def register():
 
     return render_template('register.html')
 
+
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
@@ -202,7 +206,7 @@ def login():
             user_obj = User(user['id'], user['username'], user['email'], user['coin_balance'])
             login_user(user_obj)
 
-            # Admin redirect
+            # Admin redirect (change to your admin email if needed)
             if user['email'] == "veenamalipatil279@gmail.com":
                 return redirect(url_for('admin_dashboard'))
             return redirect(url_for('index'))
@@ -211,12 +215,14 @@ def login():
 
     return render_template('login.html')
 
+
 @app.route('/logout')
 @login_required
 def logout():
     logout_user()
     flash('You have been logged out.', 'success')
     return redirect(url_for('index'))
+
 
 # --------------------------
 # Admin dashboard (kept logic)
@@ -289,6 +295,7 @@ def admin_dashboard():
                            top_restaurant_orders=top_restaurant_orders,
                            top_restaurant_revenue=top_restaurant_revenue)
 
+
 # --------------------------
 # Restaurant & cart routes
 # --------------------------
@@ -312,6 +319,7 @@ def restaurant(restaurant_id):
 
     return render_template('restaurant.html', restaurant=restaurant, menu_by_category=menu_by_category)
 
+
 @app.route('/add_to_cart', methods=['POST'])
 @login_required
 def add_to_cart():
@@ -326,6 +334,7 @@ def add_to_cart():
     session['cart'] = cart
     flash('Item added to cart!', 'success')
     return redirect(url_for('cart'))
+
 
 @app.route('/cart')
 @login_required
@@ -359,6 +368,7 @@ def cart():
 
     return render_template('cart.html', cart_items=cart_items, total=total)
 
+
 @app.route('/update_cart', methods=['POST'])
 @login_required
 def update_cart():
@@ -380,6 +390,7 @@ def update_cart():
 
     return redirect(url_for('cart'))
 
+
 # --------------------------
 # Checkout & order placement
 # --------------------------
@@ -396,7 +407,6 @@ def checkout():
         total = 0
         restaurant_id = None
 
-<<<<<<< HEAD
         for item_id, quantity in session['cart'].items():
             item = conn.execute('SELECT * FROM menu_items WHERE id = ?', (item_id,)).fetchone()
             if item:
@@ -454,46 +464,6 @@ def checkout():
 
             cashback_coins = int(total * 0.05)
             conn.execute('UPDATE users SET coin_balance = coin_balance + ? WHERE id = ?', (cashback_coins, current_user.id))
-=======
-# Calculate GST
-    cgst = total * 0.09
-    sgst = total * 0.09
-    gst_total = cgst + sgst
-    total_incl_gst = total + gst_total
-    
-    user = conn.execute('SELECT * FROM users WHERE id = ?', (current_user.id,)).fetchone()
-    
-    if request.method == 'POST':
-        address = request.form.get('address')
-        coins_to_use = int(request.form.get('coins_to_use', 0))
-        
-        if coins_to_use > user['coin_balance']:
-            flash('Insufficient coin balance!', 'error')
-            conn.close()
-            return redirect(url_for('checkout'))
-        
-        if coins_to_use > total_incl_gst:
-            coins_to_use = int(total_incl_gst)
-        
-        final_amount = total_incl_gst - (coins_to_use / 100)
-        
-        # Save order
-        cursor = conn.execute('''INSERT INTO orders (user_id, restaurant_id, total_amount, coins_used, final_amount, status, delivery_address) 
-                                VALUES (?, ?, ?, ?, ?, ?, ?)''',
-                             (current_user.id, restaurant_id, total_incl_gst, coins_to_use, final_amount, 'Confirmed', address))
-        order_id = cursor.lastrowid
-        
-        # Save order items
-        for item in cart_items:
-            conn.execute('INSERT INTO order_items (order_id, menu_item_id, quantity, price) VALUES (?, ?, ?, ?)',
-                        (order_id, item['id'], item['quantity'], item['price']))
-        
-        # Update user coins
-        new_balance = user['coin_balance'] - coins_to_use
-        conn.execute('UPDATE users SET coin_balance = ? WHERE id = ?', (new_balance, current_user.id))
-        
-        if coins_to_use > 0:
->>>>>>> 8d9aa9bec18e4538fde18702685509282f862247
             conn.execute('INSERT INTO coin_transactions (user_id, amount, transaction_type, description) VALUES (?, ?, ?, ?)',
                          (current_user.id, cashback_coins, 'earned', f'Cashback from order #{order_id}'))
 
@@ -507,6 +477,7 @@ def checkout():
 
     return render_template('checkout.html', cart_items=cart_items, total=total, cgst=cgst, sgst=sgst,
                            total_incl_gst=total_incl_gst, coin_balance=user['coin_balance'])
+
 
 # --------------------------
 # Orders listing
@@ -528,28 +499,33 @@ def orders():
 
     return render_template('orders.html', orders=orders)
 
+
 # --------------------------
-# Simple game pages & API
+# Games & game API
 # --------------------------
 @app.route('/games')
 @login_required
 def games():
     return render_template('games.html')
 
+
 @app.route('/games/memory')
 @login_required
 def memory():
     return render_template('memory.html')
+
 
 @app.route('/game/catch')
 @login_required
 def catch():
     return render_template('catch.html')
 
+
 @app.route('/game/runner')
 @login_required
 def runner():
     return render_template('runner.html')
+
 
 @app.route('/api/game/complete', methods=['POST'])
 @login_required
@@ -592,6 +568,7 @@ def complete_game():
         'message': f'You earned {coins_earned} coins!'
     })
 
+
 # --------------------------
 # Wallet & vendor register
 # --------------------------
@@ -610,6 +587,7 @@ def wallet():
         conn.close()
 
     return render_template('wallet.html', transactions=transactions, coin_balance=user['coin_balance'])
+
 
 @app.route('/vendor_register', methods=['GET', 'POST'])
 def vendor_register():
@@ -642,6 +620,7 @@ def vendor_register():
 
     return render_template('vendor_register.html')
 
+
 # --------------------------
 # Invoice: view + download (clean)
 # --------------------------
@@ -669,9 +648,27 @@ def invoice(order_id):
             WHERE oi.order_id = ?
         ''', (order_id,)).fetchall()
 
-        return render_template('invoice.html', order=order, items=items,mode='html')
+        # Calculate totals
+        total = sum(item['subtotal'] for item in items)
+        cgst = total * 0.09
+        sgst = total * 0.09
+        gst_total = cgst + sgst
+        total_incl_gst = total + gst_total
+        final_amount = total_incl_gst - order['coins_used']
+
+        return render_template('invoice.html',
+                               order=order,
+                               items=items,
+                               total=total,
+                               cgst=cgst,
+                               sgst=sgst,
+                               gst_total=gst_total,
+                               total_incl_gst=total_incl_gst,
+                               final_amount=final_amount,
+                               mode="html")
     finally:
         conn.close()
+
 
 @app.route('/invoice/<int:order_id>/download')
 @login_required
@@ -697,10 +694,30 @@ def invoice_download(order_id):
             WHERE oi.order_id = ?
         ''', (order_id,)).fetchall()
 
-        # 🔥 PASS mode="pdf" so the button hides
-        html = render_template('invoice.html', order=order, items=items, mode="pdf")
+        # Calculate totals
+        total = sum(item['subtotal'] for item in items)
+        cgst = total * 0.09
+        sgst = total * 0.09
+        gst_total = cgst + sgst
+        total_incl_gst = total + gst_total
+        final_amount = total_incl_gst - order['coins_used']
 
+        # Render invoice HTML with mode="pdf" so template hides the download button
+        html = render_template('invoice.html',
+                               order=order,
+                               items=items,
+                               total=total,
+                               cgst=cgst,
+                               sgst=sgst,
+                               gst_total=gst_total,
+                               total_incl_gst=total_incl_gst,
+                               final_amount=final_amount,
+                               mode="pdf")
+
+        # PDF generation (options can be adjusted if needed)
         config = get_pdfkit_config()
+        # example options if you want margins or enable local file access:
+        # options = {"enable-local-file-access": None, "margin-top": "10mm", "margin-bottom": "10mm"}
         pdf = pdfkit.from_string(html, False, configuration=config)
 
         response = make_response(pdf)
@@ -709,50 +726,14 @@ def invoice_download(order_id):
         return response
     finally:
         conn.close()
-<<<<<<< HEAD
 
-=======
-        return redirect(url_for('orders'))
-    
-    # Get order items
-    items = conn.execute('''
-        SELECT m.name, oi.quantity, oi.price, (oi.quantity * oi.price) AS subtotal
-        FROM order_items oi
-        JOIN menu_items m ON oi.menu_item_id = m.id
-        WHERE oi.order_id = ?
-    ''', (order_id,)).fetchall()
-    
-    total = sum(item['subtotal'] for item in items)
-    cgst = total * 0.09
-    sgst = total * 0.09
-    total_incl_gst = total + cgst + sgst
-    coins_used = order['coins_used'] if 'coins_used' in order.keys() else 0
-    final_amount = total_incl_gst - (coins_used/100)
 
-    conn.close()
-    
-    return render_template(
-        'invoice.html',
-        order=order,
-        items=items,
-        total=total,
-        cgst=cgst,
-        sgst=sgst,
-        total_incl_gst=total_incl_gst,
-        coins_used=coins_used,
-        final_amount=final_amount
-    )
->>>>>>> 8d9aa9bec18e4538fde18702685509282f862247
-
-# --------------------------
-# Legacy / safety - optional endpoint (not used)
-# --------------------------
-# If you have any old references to /invoice-pdf/<id>, they can still be handled.
-# We keep a small compatibility route that redirects to the new download route.
+# Compatibility redirect for legacy route
 @app.route('/invoice-pdf/<int:order_id>')
 @login_required
 def invoice_pdf_compat(order_id):
     return redirect(url_for('invoice_download', order_id=order_id))
+
 
 # --------------------------
 # Run
