@@ -5,10 +5,61 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Zomato - Gamified Food Ordering{% endblock %}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script>
+function goBack() {
+    if (document.referrer && document.referrer !== window.location.href) {
+        window.history.back();
+    } else {
+        window.location.href = "{{ url_for('index') }}"; // fallback to home page
+    }
+}
+</script>
+
+<style>
+  .back-btn {
+    position: fixed;           /* stays visible even when scrolling */
+    top: 80px;                 /* adjust based on your navbar height */
+    left: 20px;
+    background-color: #e23744; /* Zomato red */
+    color: white;
+    border: none;
+    padding: 10px 18px;
+    font-size: 16px;
+    font-weight: 600;
+    border-radius: 8px;
+    cursor: pointer;
+    z-index: 9999;             /* ensures it’s above all content */
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    transition: all 0.2s ease-in-out;
+  }
+
+  .back-btn:hover {
+    background-color: #c52f3d;
+    transform: scale(1.05);
+  }
+
+  /* optional: make it mobile-friendly */
+  @media (max-width: 600px) {
+    .back-btn {
+      top: 70px;
+      left: 10px;
+      padding: 8px 14px;
+      font-size: 14px;
+    }
+  }
+</style>
+
+   
 </head>
+
+
 <body>
+    <button onclick="goBack()" class="back-btn">← Back</button>
+
+    <!-- 🔴 Existing Navbar (kept same) -->
     <nav class="navbar">
         <div class="navbar-content">
+          
             <h1><a href="{{ url_for('index') }}">Zomato </a></h1>
             <div class="nav-links">
                 {% if current_user.is_authenticated %}
@@ -28,6 +79,7 @@
         </div>
     </nav>
 
+    <!-- Main container -->
     <div class="container">
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
@@ -40,12 +92,9 @@
         {% block content %}{% endblock %}
     </div>
 
-
 {% block footer %}
-    <!--Footer Section-->
 <footer class="zomato-footer">
   <div class="footer-container">
-    <!-- Company Section -->
     <div class="footer-section">
       <h4>Company</h4>
       <ul>
@@ -56,7 +105,6 @@
       </ul>
     </div>
 
-    <!-- For Restaurants -->
     <div class="footer-section">
       <h4>For Restaurants</h4>
       <ul>
@@ -70,7 +118,6 @@
       </ul>
     </div>
 
-    <!-- For You -->
     <div class="footer-section">
       <h4>For You</h4>
       <ul>
@@ -81,7 +128,6 @@
       </ul>
     </div>
 
-    <!-- Social Links -->
     <div class="footer-section">
       <h4>Social Links</h4>
       <div class="social-icons">

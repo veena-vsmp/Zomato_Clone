@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # app.py (cleaned & optimized)
 from flask import (
     Flask, render_template, request, redirect, url_for,
@@ -7,6 +8,12 @@ from flask_login import (
     LoginManager, UserMixin, login_user, logout_user,
     login_required, current_user
 )
+=======
+
+from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
+from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
+from flask import request, jsonify, session
+>>>>>>> 8d9aa9bec18e4538fde18702685509282f862247
 from werkzeug.security import generate_password_hash, check_password_hash
 
 import sqlite3
@@ -389,6 +396,7 @@ def checkout():
         total = 0
         restaurant_id = None
 
+<<<<<<< HEAD
         for item_id, quantity in session['cart'].items():
             item = conn.execute('SELECT * FROM menu_items WHERE id = ?', (item_id,)).fetchone()
             if item:
@@ -446,6 +454,46 @@ def checkout():
 
             cashback_coins = int(total * 0.05)
             conn.execute('UPDATE users SET coin_balance = coin_balance + ? WHERE id = ?', (cashback_coins, current_user.id))
+=======
+# Calculate GST
+    cgst = total * 0.09
+    sgst = total * 0.09
+    gst_total = cgst + sgst
+    total_incl_gst = total + gst_total
+    
+    user = conn.execute('SELECT * FROM users WHERE id = ?', (current_user.id,)).fetchone()
+    
+    if request.method == 'POST':
+        address = request.form.get('address')
+        coins_to_use = int(request.form.get('coins_to_use', 0))
+        
+        if coins_to_use > user['coin_balance']:
+            flash('Insufficient coin balance!', 'error')
+            conn.close()
+            return redirect(url_for('checkout'))
+        
+        if coins_to_use > total_incl_gst:
+            coins_to_use = int(total_incl_gst)
+        
+        final_amount = total_incl_gst - (coins_to_use / 100)
+        
+        # Save order
+        cursor = conn.execute('''INSERT INTO orders (user_id, restaurant_id, total_amount, coins_used, final_amount, status, delivery_address) 
+                                VALUES (?, ?, ?, ?, ?, ?, ?)''',
+                             (current_user.id, restaurant_id, total_incl_gst, coins_to_use, final_amount, 'Confirmed', address))
+        order_id = cursor.lastrowid
+        
+        # Save order items
+        for item in cart_items:
+            conn.execute('INSERT INTO order_items (order_id, menu_item_id, quantity, price) VALUES (?, ?, ?, ?)',
+                        (order_id, item['id'], item['quantity'], item['price']))
+        
+        # Update user coins
+        new_balance = user['coin_balance'] - coins_to_use
+        conn.execute('UPDATE users SET coin_balance = ? WHERE id = ?', (new_balance, current_user.id))
+        
+        if coins_to_use > 0:
+>>>>>>> 8d9aa9bec18e4538fde18702685509282f862247
             conn.execute('INSERT INTO coin_transactions (user_id, amount, transaction_type, description) VALUES (?, ?, ?, ?)',
                          (current_user.id, cashback_coins, 'earned', f'Cashback from order #{order_id}'))
 
@@ -661,7 +709,40 @@ def invoice_download(order_id):
         return response
     finally:
         conn.close()
+<<<<<<< HEAD
 
+=======
+        return redirect(url_for('orders'))
+    
+    # Get order items
+    items = conn.execute('''
+        SELECT m.name, oi.quantity, oi.price, (oi.quantity * oi.price) AS subtotal
+        FROM order_items oi
+        JOIN menu_items m ON oi.menu_item_id = m.id
+        WHERE oi.order_id = ?
+    ''', (order_id,)).fetchall()
+    
+    total = sum(item['subtotal'] for item in items)
+    cgst = total * 0.09
+    sgst = total * 0.09
+    total_incl_gst = total + cgst + sgst
+    coins_used = order['coins_used'] if 'coins_used' in order.keys() else 0
+    final_amount = total_incl_gst - (coins_used/100)
+
+    conn.close()
+    
+    return render_template(
+        'invoice.html',
+        order=order,
+        items=items,
+        total=total,
+        cgst=cgst,
+        sgst=sgst,
+        total_incl_gst=total_incl_gst,
+        coins_used=coins_used,
+        final_amount=final_amount
+    )
+>>>>>>> 8d9aa9bec18e4538fde18702685509282f862247
 
 # --------------------------
 # Legacy / safety - optional endpoint (not used)
