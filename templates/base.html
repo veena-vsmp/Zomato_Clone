@@ -5,15 +5,22 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Zomato - Gamified Food Ordering{% endblock %}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-    <script>
+  <script>
 function goBack() {
     if (document.referrer && document.referrer !== window.location.href) {
         window.history.back();
+        location.reload();   // refresh after going back
     } else {
-        window.location.href = "{{ url_for('index') }}"; // fallback to home page
+        location.reload();   // refresh current page
+        // Or redirect to home if you prefer:
+        // window.location.href = "{{ url_for('index') }}";
     }
 }
 </script>
+
+
+
+
 
 <style>
   .back-btn {

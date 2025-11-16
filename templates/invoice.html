@@ -2,42 +2,168 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Invoice #{{ order.id }}</title>
+    <title>Zomato Order Invoice</title>
+
     <style>
-        body { font-family: Arial, sans-serif; padding: 2rem; background: #f5f5f5; }
-        .invoice-box { max-width: 800px; margin: auto; background: white; padding: 2rem; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
-        .section { margin-bottom: 2rem; }
-        .item-row { display: flex; justify-content: space-between; padding: 0.5rem 0; border-bottom: 1px solid #f1f3f5; }
-        .total-row { display: flex; justify-content: space-between; font-weight: bold; padding: 0.5rem 0; }
+        body {
+            font-family: Arial, sans-serif;
+            background: #f5f5f5;
+            padding: 20px;
+            color: #333;
+        }
+
+        .invoice-container {
+            max-width: 850px;
+            margin: auto;
+            background: white;
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+        }
+
+        .header {
+            background: #e23744;
+            padding: 12px;
+            border-radius: 8px;
+            text-align: center;
+            color: white;
+            font-size: 20px;
+            font-weight: bold;
+        }
+
+        .download-btn {
+            float: right;
+            background: #d32f2f;
+            padding: 8px 14px;
+            color: white;
+            text-decoration: none;
+            border-radius: 6px;
+            font-size: 14px;
+            margin-top: -40px;
+        }
+
+        .section-title {
+            margin-top: 25px;
+            font-weight: bold;
+            font-size: 16px;
+            margin-bottom: 8px;
+        }
+
+        .info-line {
+            margin: 3px 0;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 12px;
+        }
+
+        table th, table td {
+            border: 1px solid #ddd;
+            padding: 10px;
+            font-size: 14px;
+        }
+
+        table th {
+            background: #f2f2f2;
+            text-align: left;
+        }
+
+        .totals-box {
+            margin-top: 18px;
+            width: 50%;
+            float: right;
+            font-size: 15px;
+        }
+
+        .total-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 6px 0;
+        }
+
+        .footer {
+            clear: both;
+            margin-top: 40px;
+            text-align: center;
+            font-size: 13px;
+            color: #777;
+        }
     </style>
 </head>
+
 <body>
-    <div class="invoice-box">
-        <h2>Invoice #{{ order.id }}</h2>
-        <p><strong>Date:</strong> {{ order.created_at }}</p>
-        <p><strong>Customer:</strong> {{ order.username }} | <strong>Email:</strong> {{ order.email }}</p>
-        <p><strong>Delivery Address:</strong> {{ order.delivery_address }}</p>
-
-        <div class="section">
-            <h3>Order Summary</h3>
-            {% for item in items %}
-            <div class="item-row">
-                <span>{{ item.name }} x {{ item.quantity }}</span>
-                <span>₹{{ "%.2f"|format(item.subtotal) }}</span>
-            </div>
-            {% endfor %}
-
-            <div style="margin-top: 1rem; border-top: 2px solid #2d3436; padding-top: 0.5rem;">
-                <div class="total-row"><span>Subtotal:</span><span>₹{{ "%.2f"|format(total) }}</span></div>
-                <div class="total-row"><span>CGST (9%):</span><span>₹{{ "%.2f"|format(cgst) }}</span></div>
-                <div class="total-row"><span>SGST (9%):</span><span>₹{{ "%.2f"|format(sgst) }}</span></div>
-                <div class="total-row"><span>Total (incl. GST):</span><span>₹{{ "%.2f"|format(total_incl_gst) }}</span></div>
-                <div class="total-row"><span>Coins Used:</span><span>₹{{ coins_used }}</span></div>
-                <div class="total-row" style="font-size: 1.2rem; margin-top: 0.5rem;"><span>Final Amount:</span><span>₹{{ "%.2f"|format(final_amount) }}</span></div>
-            </div>
-        </div>
-
-        <p style="margin-top: 2rem;">Thank you for ordering with Zomato!</p>
+<div class="invoice-container">
+    <!-- Header -->
+    <div class="header">
+        ZOMATO ORDER INVOICE
     </div>
+    <!-- SHOW DOWNLOAD BUTTON ONLY IN WEB VIEW -->
+    {% if mode != "pdf" %}
+        <a href="{{ url_for('invoice_download', order_id=order.id) }}" class="download-btn">
+            ⬇ Download PDF
+        </a>
+    {% endif %}
+    <!-- Invoice Info -->
+    <div class="section-title">Invoice No: INV-{{ order.id }} &nbsp; | &nbsp; Date: {{ order.created_at }}</div>
+    <!-- Restaurant Details -->
+    <div class="section-title">Restaurant Details</div>
+    <div class="info-line"><strong>{{ order.restaurant_name }}</strong></div>
+    <div class="info-line">GSTIN: 27ABCDE1234F1Z5</div>
+    <div class="info-line">FSSAI: 112233445566</div>
+    <!-- Customer Details -->
+    <div class="section-title">Customer Details</div>
+    <div class="info-line">Name: {{ order.username }}</div>
+    <div class="info-line">Email: {{ order.email }}</div>
+    <div class="info-line">Delivery Address: {{ order.delivery_address }}</div>
+    <!-- Order Summary -->
+    <div class="section-title">Order Summary</div>
+    <table>
+        <thead>
+            <tr>
+                <th>Item</th>
+                <th>Qty</th>
+                <th>Price (₹)</th>
+                <th>Subtotal (₹)</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in items %}
+            <tr>
+                <td>{{ item.name }}</td>
+                <td>{{ item.quantity }}</td>
+                <td>₹{{ "%.2f"|format(item.price) }}</td>
+                <td>₹{{ "%.2f"|format(item.subtotal) }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    <!-- Totals Section -->
+    <div class="totals-box">
+        <div class="total-row"><span>Subtotal:</span><span>₹{{ "%.2f"|format(total) }}</span></div>
+        <div class="total-row"><span>CGST (9%):</span><span>₹{{ "%.2f"|format(cgst) }}</span></div>
+        <div class="total-row"><span>SGST (9%):</span><span>₹{{ "%.2f"|format(sgst) }}</span></div>
+        <div class="total-row"><span>Total (incl. GST):</span><span>₹{{ "%.2f"|format(total_incl_gst) }}</span></div>
+        <div class="total-row"><span>Coins Used:</span><span>₹{{ "%.2f"|format(order.coins_used) }}</span></div>
+
+        <hr>
+
+        <div class="total-row" style="font-weight: bold; font-size: 18px;">
+            <span>Final Payable:</span>
+            <span>₹{{ "%.2f"|format(final_amount) }}</span>
+        </div>
+    </div>
+
+    <div style="clear: both;"></div>
+
+    <!-- Footer -->
+    <div class="footer">
+        Thank you for ordering with Zomato!  
+        This is a system-generated invoice and does not require a signature.
+    </div>
+
+</div>
+
 </body>
 </html>
