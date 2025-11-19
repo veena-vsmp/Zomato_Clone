@@ -52,9 +52,9 @@
                 
                 <div class="form-group">
                     <label for="coins_to_use">Use Coins (You have {{ coin_balance }} coins)</label>
-                    <input type="number" id="coins_to_use" name="coins_to_use" min="0" max="{{ [coin_balance, total_incl_gst|int]|min }}" value="0">
+                    <input type="number" id="coins_to_use" name="coins_to_use" min="0" max="{{ [coin_balance, (total_incl_gst * 0.10 * 100)|int]|min }}" value="0">
                     <p style="color: #636e72; font-size: 0.9rem; margin-top: 0.5rem;">
-                        100 coin = ₹1 discount. Max {{ coin_balance if coin_balance < (total_incl_gst * 0.1 * 10) else (total_incl_gst * 0.1 * 10)|int }} coins can be used.
+                        100 coin = ₹1 discount. Max {{ coin_balance if coin_balance < (total_incl_gst * 0.1 * 100) else (total_incl_gst * 0.1 * 100)|int }} coins can be used.
                     </p>
                 </div>
                 

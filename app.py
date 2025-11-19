@@ -46,43 +46,6 @@ def get_db():
     conn.row_factory = sqlite3.Row
     return conn
 
-def format_order_time(utc_str):
-    # Try different timestamp formats
-    formats = [
-        "%Y-%m-%dT%H:%M:%S.%f",  # 2025-11-16T16:26:20.335983
-        "%Y-%m-%d %H:%M:%S",      # 2025-11-14 10:10:11
-        "%Y-%m-%dT%H:%M:%S"       # 2025-11-16T16:26:20
-    ]
-
-    utc_time = None
-
-    for fmt in formats:
-        try:
-            utc_time = datetime.strptime(utc_str, fmt)
-            break
-        except:
-            pass
-
-    # If still not parsed, raise error
-    if utc_time is None:
-        raise ValueError(f"Unsupported datetime format: {utc_str}")
-
-    # Convert UTC → IST
-    ist_time = utc_time.replace(tzinfo=timezone.utc) + timedelta(hours=5, minutes=30)
-    now_ist = datetime.now(timezone(timedelta(hours=5, minutes=30)))
-
-    date_only = ist_time.date()
-    today = now_ist.date()
-    yesterday = today - timedelta(days=1)
-
-    if date_only == today:
-        return ist_time.strftime("Today at %I:%M %p")
-    elif date_only == yesterday:
-        return ist_time.strftime("Yesterday at %I:%M %p")
-    else:
-        return ist_time.strftime("%d %b %Y, %I:%M %p")
-
-
 
 class User(UserMixin):
     def __init__(self, id, username, email, coin_balance):
@@ -225,72 +188,6 @@ def logout():
     flash('You have been logged out.', 'success')
     return redirect(url_for('index'))
 
-# Admin dashboard 
-@app.route('/admin_dashboard')
-@login_required
-def admin_dashboard():
-    admin = {
-        "name": "Veenamalipatilr",
-        "email": "veenamalipatil279@gmail.com",
-        "role": "Administrator"
-    }
-
-    conn = get_db()
-    try:
-        c = conn.cursor()
-        total_restaurants = c.execute('SELECT COUNT(*) FROM restaurants').fetchone()[0]
-        total_orders = c.execute('SELECT COUNT(*) FROM orders').fetchone()[0]
-        total_revenue = c.execute('SELECT COALESCE(SUM(final_amount), 0) FROM orders').fetchone()[0]
-        top_restaurant = c.execute('''
-            SELECT r.name, COUNT(o.id) AS total_orders, COALESCE(SUM(o.final_amount), 0) AS total_revenue
-            FROM orders o
-            JOIN restaurants r ON o.restaurant_id = r.id
-            GROUP BY o.restaurant_id
-            ORDER BY total_orders DESC
-            LIMIT 1
-        ''').fetchone()
-        top_restaurant_name = top_restaurant['name'] if top_restaurant else "No orders yet"
-        top_restaurant_orders = top_restaurant['total_orders'] if top_restaurant else 0
-        top_restaurant_revenue = top_restaurant['total_revenue'] if top_restaurant else 0.0
-        restaurants = c.execute('SELECT id, name, cuisine, location FROM restaurants ORDER BY name').fetchall()
-        restaurant_data = []
-        for r in restaurants:
-            stats = c.execute('''
-                SELECT COUNT(*) AS total_orders, COALESCE(SUM(final_amount), 0) AS total_revenue
-                FROM orders WHERE restaurant_id = ?
-            ''', (r['id'],)).fetchone()
-
-            recent_orders = c.execute('''
-                SELECT o.id AS order_id, u.username, o.total_amount, o.final_amount, o.status, o.created_at
-                FROM orders o
-                JOIN users u ON o.user_id = u.id
-                WHERE o.restaurant_id = ?
-                ORDER BY o.created_at DESC
-                LIMIT 5
-            ''', (r['id'],)).fetchall()
-
-            restaurant_data.append({
-                'id': r['id'],
-                'name': r['name'],
-                'cuisine': r['cuisine'],
-                'location': r['location'],
-                'total_orders': stats['total_orders'],
-                'total_revenue': stats['total_revenue'],
-                'recent_orders': recent_orders
-            })
-    finally:
-        conn.close()
-
-    return render_template('admin_dashboard.html',
-                           admin=admin,
-                           restaurants=restaurant_data,
-                           total_restaurants=total_restaurants,
-                           total_orders=total_orders,
-                           total_revenue=total_revenue,
-                           top_restaurant_name=top_restaurant_name,
-                           top_restaurant_orders=top_restaurant_orders,
-                           top_restaurant_revenue=top_restaurant_revenue)
-
 # Restaurant & cart routes
 @app.route('/restaurant/<int:restaurant_id>')
 def restaurant(restaurant_id):
@@ -426,9 +323,7 @@ def checkout():
                 flash('Insufficient coin balance!', 'error')
                 return redirect(url_for('checkout'))
 
-            if coins_to_use > total_incl_gst:
-                coins_to_use = int(total_incl_gst)
-
+            max_allowed = min(user['coin_balance'], int(total_incl_gst * 0.10 * 100))
             final_amount = total_incl_gst - (coins_to_use / 100)
 
             cursor = conn.execute('''
@@ -656,6 +551,138 @@ def invoice_download(order_id):
 @login_required
 def invoice_pdf_compat(order_id):
     return redirect(url_for('invoice_download', order_id=order_id))
+
+def is_admin():
+    return current_user.is_authenticated and current_user.username == "veenamalipatil"
+
+# Admin dashboard 
+@app.route('/admin_dashboard')
+@login_required
+def admin_dashboard():
+    if current_user.username != "veenamalipatil":
+        flash("Unauthorized access!", "error")
+        return redirect(url_for("index"))
+
+    conn = get_db()
+    conn.row_factory = sqlite3.Row  # Allows dict-style access
+
+    # Fetch all data from correct tables
+    users = conn.execute("SELECT * FROM users").fetchall()
+    restaurants = conn.execute("SELECT * FROM restaurants").fetchall()
+    menus = conn.execute("SELECT * FROM menu_items").fetchall()
+
+    # Orders must join users + restaurants for displaying names
+    orders = conn.execute('''
+        SELECT 
+            o.id,
+            u.username AS username,
+            r.name AS restaurant_name,
+            o.final_amount AS total,
+            o.created_at AS order_date
+        FROM orders o
+        JOIN users u ON o.user_id = u.id
+        JOIN restaurants r ON o.restaurant_id = r.id
+    ''').fetchall()
+
+    # Dashboard summary counts
+    users_count = len(users)
+    restaurant_count = len(restaurants)
+    total_orders = len(orders)
+
+    # Calculate total revenue
+    total_revenue = conn.execute("SELECT SUM(final_amount) FROM orders").fetchone()[0]
+    total_revenue = total_revenue if total_revenue else 0
+
+    return render_template(
+        "admin_dashboard.html",
+        users=users,
+        restaurants=restaurants,
+        menu=menus,
+        orders=orders,
+        users_count=users_count,
+        restaurant_count=restaurant_count,
+        total_orders=total_orders,
+        total_revenue=total_revenue
+    )
+
+
+@app.route('/edit_vendor/<int:id>', methods=['GET', 'POST'])
+@login_required
+def edit_vendor(id):
+    if not is_admin():
+        flash("Unauthorized access!", "error")
+        return redirect(url_for('index'))
+
+    conn = get_db()
+    vendor = conn.execute("SELECT * FROM restaurants WHERE id = ?", (id,)).fetchone()
+
+    if request.method == "POST":
+        name = request.form['name']
+        location = request.form['location']
+        email = request.form['email']
+
+        conn.execute("""
+            UPDATE restaurants 
+            SET name = ?, location = ?, email = ?
+            WHERE id = ?
+        """, (name, location, email, id))
+
+        conn.commit()
+        flash("Vendor updated successfully!", "success")
+        return redirect(url_for('admin_dashboard'))
+
+    return render_template("edit_vendor.html", vendor=vendor)
+
+@app.route('/delete_vendor/<int:id>', methods=['POST'])
+@login_required
+def delete_vendor(id):
+    if not is_admin():
+        flash("Unauthorized access!", "error")
+        return redirect(url_for('index'))
+
+    conn = get_db()
+    conn.execute("DELETE FROM restaurants WHERE id = ?", (id,))
+    conn.commit()
+
+    flash("Vendor deleted successfully!", "success")
+    return redirect(url_for('admin_dashboard'))
+
+@app.route('/delete_user/<int:id>')
+@login_required
+def delete_user(id):
+    if current_user.username != "veenamalipatil":
+        flash("Unauthorized", "error")
+        return redirect(url_for("index"))
+
+    conn = get_db()
+    conn.execute("DELETE FROM users WHERE id = ?", (id,))
+    conn.commit()
+    flash("User deleted!", "success")
+    return redirect(url_for("admin_dashboard"))
+
+@app.route('/add_menu', methods=['GET', 'POST'])
+@login_required
+def add_menu():
+    conn = get_db()
+
+    if request.method == 'POST':
+        name = request.form['name']
+        price = request.form['price']
+        restaurant_id = request.form['restaurant_id']
+
+        conn.execute("""
+            INSERT INTO menu_items (name, price, restaurant_id)
+            VALUES (?, ?, ?)
+        """, (name, price, restaurant_id))
+
+        conn.commit()
+        flash("Menu item added successfully!", "success")
+        return redirect(url_for('admin_dashboard'))
+
+    restaurants = conn.execute("SELECT id, name FROM restaurants").fetchall()
+    
+    return render_template("add_menu.html", restaurants=restaurants)
+
 
 # Run
 if __name__ == '__main__':

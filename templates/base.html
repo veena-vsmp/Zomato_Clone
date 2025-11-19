@@ -5,69 +5,63 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Zomato - Gamified Food Ordering{% endblock %}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-  <script>
-function goBack() {
-    if (document.referrer && document.referrer !== window.location.href) {
-        window.history.back();
-        location.reload();   // refresh after going back
-    } else {
-        location.reload();   // refresh current page
-        // Or redirect to home if you prefer:
-        // window.location.href = "{{ url_for('index') }}";
+
+    <style>
+      .back-btn {
+        position: fixed;
+        top: 80px;
+        left: 20px;
+        background-color: #e23744;
+        color: white;
+        border: none;
+        padding: 10px 18px;
+        font-size: 16px;
+        font-weight: 600;
+        border-radius: 8px;
+        cursor: pointer;
+        z-index: 9999;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+        transition: all 0.2s ease-in-out;
+      }
+
+      .back-btn:hover {
+        background-color: #c52f3d;
+        transform: scale(1.05);
+      }
+
+      @media (max-width: 600px) {
+        .back-btn {
+          top: 70px;
+          left: 10px;
+          padding: 8px 14px;
+          font-size: 14px;
+        }
+      }
+    </style>
+
+    <script>
+    function goBack() {
+        {% if current_user.is_authenticated %}
+            // Admin always goes to dashboard
+            window.location.href = "{{ url_for('admin_dashboard') }}";
+        {% else %}
+            // Normal user fallback
+            if (window.history.length > 1) {
+                window.history.back();
+            } else {
+                window.location.href = "{{ url_for('index') }}";
+            }
+        {% endif %}
     }
-}
-</script>
-
-
-
-
-
-<style>
-  .back-btn {
-    position: fixed;           /* stays visible even when scrolling */
-    top: 80px;                 /* adjust based on your navbar height */
-    left: 20px;
-    background-color: #e23744; /* Zomato red */
-    color: white;
-    border: none;
-    padding: 10px 18px;
-    font-size: 16px;
-    font-weight: 600;
-    border-radius: 8px;
-    cursor: pointer;
-    z-index: 9999;             /* ensures it’s above all content */
-    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-    transition: all 0.2s ease-in-out;
-  }
-
-  .back-btn:hover {
-    background-color: #c52f3d;
-    transform: scale(1.05);
-  }
-
-  /* optional: make it mobile-friendly */
-  @media (max-width: 600px) {
-    .back-btn {
-      top: 70px;
-      left: 10px;
-      padding: 8px 14px;
-      font-size: 14px;
-    }
-  }
-</style>
-
-   
+    </script>
 </head>
-
-
 <body>
     <button onclick="goBack()" class="back-btn">← Back</button>
 
-    <!-- 🔴 Existing Navbar (kept same) -->
+    <!-- Navbar -->
     <nav class="navbar">
         <div class="navbar-content">
-          
-            <h1><a href="{{ url_for('index') }}">Zomato </a></h1>
+            <h1><a href="{{ url_for('index') }}">Zomato</a></h1>
             <div class="nav-links">
                 {% if current_user.is_authenticated %}
                     <a href="{{ url_for('games') }}">🎮 Play Games</a>
@@ -99,57 +93,57 @@ function goBack() {
         {% block content %}{% endblock %}
     </div>
 
-{% block footer %}
-<footer class="zomato-footer">
-  <div class="footer-container">
-    <div class="footer-section">
-      <h4>Company</h4>
-      <ul>
-        <li><a href="{{ url_for('aboutus') }}"> About </a></li>
-        <li><a href="#">Careers</a></li>
-        <li><a href="#">Team</a></li>
-        <li><a href="#">Zomato Blog</a></li>
-      </ul>
-    </div>
+    <!-- Footer -->
+    {% block footer %}
+    <footer class="zomato-footer">
+      <div class="footer-container">
+        <div class="footer-section">
+          <h4>Company</h4>
+          <ul>
+            <li><a href="{{ url_for('aboutus') }}">About</a></li>
+            <li><a href="#">Careers</a></li>
+            <li><a href="#">Team</a></li>
+            <li><a href="#">Zomato Blog</a></li>
+          </ul>
+        </div>
 
-    <div class="footer-section">
-      <h4>For Restaurants</h4>
-      <ul>
-        <li><a href="#">Partner With Us</a></li>
-        <li><a href="#">Apps for You</a></li>
-      </ul>
-      <p> </p>
-      <h4> For Enterprises </h4>
-      <ul>
-        <li><a href="#"> Zomato For Enterprises</a></li>
-      </ul>
-    </div>
+        <div class="footer-section">
+          <h4>For Restaurants</h4>
+          <ul>
+            <li><a href="#">Partner With Us</a></li>
+            <li><a href="#">Apps for You</a></li>
+          </ul>
+          <h4>For Enterprises</h4>
+          <ul>
+            <li><a href="#">Zomato For Enterprises</a></li>
+          </ul>
+        </div>
 
-    <div class="footer-section">
-      <h4>For You</h4>
-      <ul>
-        <li><a href="#">Privacy</a></li>
-        <li><a href="#">Terms</a></li>
-        <li><a href="#">Security</a></li>
-        <li><a href="#">Sitemap</a></li>
-      </ul>
-    </div>
+        <div class="footer-section">
+          <h4>For You</h4>
+          <ul>
+            <li><a href="#">Privacy</a></li>
+            <li><a href="#">Terms</a></li>
+            <li><a href="#">Security</a></li>
+            <li><a href="#">Sitemap</a></li>
+          </ul>
+        </div>
 
-    <div class="footer-section">
-      <h4>Social Links</h4>
-      <div class="social-icons">
-        <a href="#"><img src="/static/home_images/fb.png" class="icons" alt="Facebook" /></a>
-        <a href="#"><img src="/static/home_images/twitter.png" class="icons" alt="Twitter" /></a>
-        <a href="#"><img src="/static/home_images/ig.jpg" class="icons" alt="Instagram" /></a>
-        <a href="#"><img src="/static/home_images/lidn.png" class="icons" alt="LinkedIn" /></a>
+        <div class="footer-section">
+          <h4>Social Links</h4>
+          <div class="social-icons">
+            <a href="#"><img src="/static/home_images/fb.png" class="icons" alt="Facebook" /></a>
+            <a href="#"><img src="/static/home_images/twitter.png" class="icons" alt="Twitter" /></a>
+            <a href="#"><img src="/static/home_images/ig.jpg" class="icons" alt="Instagram" /></a>
+            <a href="#"><img src="/static/home_images/lidn.png" class="icons" alt="LinkedIn" /></a>
+          </div>
+        </div>
       </div>
-    </div>
-  </div>
 
-  <div class="footer-bottom" style="text-align: center;">
-    <p>© 2025 Zomato™ Ltd. All rights reserved.</p>
-  </div>
-</footer>
-{% endblock %}
+      <div class="footer-bottom" style="text-align: center;">
+        <p>© 2025 Zomato™ Ltd. All rights reserved.</p>
+      </div>
+    </footer>
+    {% endblock %}
 </body>
 </html>
