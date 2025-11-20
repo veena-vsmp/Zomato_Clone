@@ -16,15 +16,9 @@ import json
 import re
 from datetime import datetime
 from io import BytesIO
-from reportlab.lib.pagesizes import A4
-from reportlab.lib import colors
-from reportlab.lib.units import mm
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+
 # Ensure upload folder exists
 UPLOAD_FOLDER = "static/restaurants"
-
-# Create folder if it does not exist
 if not os.path.exists(UPLOAD_FOLDER):
     os.makedirs(UPLOAD_FOLDER)
 
@@ -64,18 +58,13 @@ def get_pdfkit_config():
     # Nothing found
     raise FileNotFoundError("wkhtmltopdf not found! Install from: https://wkhtmltopdf.org/downloads/")
 
-
-
 # DB helper & user model
-
 def get_db():
     conn = sqlite3.connect('foodapp.db')
     conn.row_factory = sqlite3.Row
     return conn
 
-# --------------------------
 # User model
-# --------------------------
 class User(UserMixin):
     def __init__(self, id, username, email, coin_balance):
         self.id = id
@@ -93,6 +82,7 @@ def load_user(user_id):
     if u:
         return User(u['id'], u['username'], u['email'], u['coin_balance'])
     return None
+
 # Context processors
 @app.context_processor
 def inject_cart():
@@ -110,9 +100,8 @@ def inject_user():
             conn.close()
         return {'user_coin_balance': u['coin_balance'] if u else 0}
     return {'user_coin_balance': 0}
-# --------------------------
+
 # Public & Auth routes
-# --------------------------
 @app.route('/')
 def index():
     conn = get_db()
@@ -204,11 +193,7 @@ def logout():
     flash('You have been logged out.', 'success')
     return redirect(url_for('index'))
 
-
-# --------------------------
 # Restaurant & cart
-# --------------------------
-
 @app.route('/restaurant/<int:restaurant_id>')
 def restaurant(restaurant_id):
     conn = get_db()
@@ -295,7 +280,6 @@ def update_cart():
         session['cart'] = cart
     return redirect(url_for('cart'))
 
-
 # Checkout & order placement
 @app.route('/checkout', methods=['GET', 'POST'])
 @login_required
@@ -303,13 +287,11 @@ def checkout():
     if 'cart' not in session or not session['cart']:
         flash('Your cart is empty!', 'error')
         return redirect(url_for('index'))
-
     conn = get_db()
     try:
         cart_items = []
         total = 0
         restaurant_id = None
-
         for item_id, quantity in session['cart'].items():
             item = conn.execute('SELECT * FROM menu_items WHERE id = ?', (item_id,)).fetchone()
             if item:
@@ -321,61 +303,47 @@ def checkout():
                     'quantity': quantity, 'subtotal': subtotal
                 })
                 total += subtotal
-
         cgst = total * 0.09
         sgst = total * 0.09
         gst_total = cgst + sgst
         total_incl_gst = total + gst_total
-
         user = conn.execute('SELECT * FROM users WHERE id = ?', (current_user.id,)).fetchone()
-
         if request.method == 'POST':
             address = request.form.get('address')
             coins_to_use = int(request.form.get('coins_to_use', 0))
-
             if coins_to_use > user['coin_balance']:
                 flash('Insufficient coin balance!', 'error')
                 return redirect(url_for('checkout'))
-
             max_allowed = min(user['coin_balance'], int(total_incl_gst * 0.10 * 100))
             final_amount = total_incl_gst - (coins_to_use / 100)
-
             cur = conn.execute('''INSERT INTO orders
                                   (user_id, restaurant_id, total_amount, coins_used, final_amount, status, delivery_address, created_at)
                                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)''',
                                (current_user.id, restaurant_id, total_incl_gst, coins_to_use, final_amount, 'Confirmed', address, datetime.utcnow().isoformat()))
             order_id = cur.lastrowid
-
             for item in cart_items:
                 conn.execute('INSERT INTO order_items (order_id, menu_item_id, quantity, price) VALUES (?, ?, ?, ?)',
                              (order_id, item['id'], item['quantity'], item['price']))
 
             new_balance = user['coin_balance'] - coins_to_use
             conn.execute('UPDATE users SET coin_balance = ? WHERE id = ?', (new_balance, current_user.id))
-
             if coins_to_use > 0:
                 conn.execute('INSERT INTO coin_transactions (user_id, amount, transaction_type, description) VALUES (?, ?, ?, ?)',
                              (current_user.id, -coins_to_use, 'spent', f'Used on order #{order_id}'))
-
             cashback_coins = int(total * 0.05)
             conn.execute('UPDATE users SET coin_balance = coin_balance + ? WHERE id = ?', (cashback_coins, current_user.id))
             conn.execute('INSERT INTO coin_transactions (user_id, amount, transaction_type, description) VALUES (?, ?, ?, ?)',
                          (current_user.id, cashback_coins, 'earned', f'Cashback from order #{order_id}'))
-
             conn.commit()
             session.pop('cart', None)
             flash(f'Order placed successfully! You earned {cashback_coins} cashback coins!', 'success')
             return redirect(url_for('orders'))
     finally:
         conn.close()
-
     return render_template('checkout.html', cart_items=cart_items, total=total, cgst=cgst, sgst=sgst,
                            total_incl_gst=total_incl_gst, coin_balance=user['coin_balance'])
 
-# --------------------------
 # Orders listing
-#orders listing
-# --------------------------
 @app.route('/orders')
 @login_required
 def orders():
@@ -389,13 +357,12 @@ def orders():
         conn.close()
     return render_template('orders.html', orders=orders)
 
-# --------------------------
 # Games
-# ------------------------
     orders = [dict(o) for o in orders]
     for o in orders:
         o["created_at"] = format_order_time(o["created_at"])
     return render_template('orders.html', orders=orders)
+
 # Games & game API
 @app.route('/games')
 @login_required
@@ -423,7 +390,6 @@ def complete_game():
     data = request.get_json()
     game_type = data.get('game_type')
     score = int(data.get('score', 0))
-
     if game_type == 'memory':
         coins_earned = min(score * 5, 50)
     elif game_type == 'spin':
@@ -434,10 +400,8 @@ def complete_game():
         coins_earned = min(score, 100)
     else:
         coins_earned = 0
-
     if coins_earned <= 0:
         return jsonify({'success': False, 'message': 'No coins earned'}), 400
-
     conn = get_db()
     try:
         conn.execute('UPDATE users SET coin_balance = coin_balance + ? WHERE id = ?', (coins_earned, current_user.id))
@@ -456,8 +420,7 @@ def complete_game():
         'message': f'You earned {coins_earned} coins!'
     })
 
-# --------------------------
-# Wallet & vendor register
+# Wallet 
 @app.route('/wallet')
 @login_required
 def wallet():
@@ -468,35 +431,8 @@ def wallet():
     finally:
         conn.close()
     return render_template('wallet.html', transactions=transactions, coin_balance=user['coin_balance'])
-
-@app.route('/vendor_register', methods=['GET', 'POST'])
-def vendor_register():
-    if request.method == 'POST':
-        data = (
-            request.form.get('restaurant_name'),
-            request.form.get('owner_name'),
-            request.form.get('email'),
-            request.form.get('phone'),
-            request.form.get('address'),
-            request.form.get('cuisine_type')
-        )
-        conn = get_db()
-        try:
-            c = conn.cursor()
-            c.execute('INSERT INTO vendors (restaurant_name, owner_name, email, phone, address, cuisine_type) VALUES (?, ?, ?, ?, ?, ?)', data)
-            conn.commit()
-            flash('Your restaurant has been submitted for admin approval!', 'success')
-        except sqlite3.IntegrityError:
-            flash('Email already registered!', 'danger')
-        finally:
-            conn.close()
-        return redirect(url_for('vendor_register'))
-    return render_template('vendor_register.html')
-
-# --------------------------
+ 
 # Invoice view + download
-# --------------------------
-# Invoice: view + download (clean)
 @app.route('/invoice/<int:order_id>')
 @login_required
 def invoice(order_id):
@@ -539,7 +475,6 @@ def invoice(order_id):
         gst_total = cgst + sgst
         total_incl_gst = total + gst_total
         final_amount = total_incl_gst - order['coins_used']
-
         return render_template('invoice.html', order=order, items=items, total=total,
                                cgst=cgst, sgst=sgst, gst_total=gst_total,
                                total_incl_gst=total_incl_gst, final_amount=final_amount, mode="html")
@@ -558,187 +493,48 @@ def invoice(order_id):
     finally:
         conn.close()
 
-@app.route('/invoice/<int:order_id>/download')
-@login_required
-def invoice_download(order_id):
-    """
-    Generate a professional-style invoice PDF using ReportLab (pure Python).
-    """
-    conn = get_db()
-    try:
-        order = conn.execute('''SELECT o.*, r.name AS restaurant_name, u.username, u.email
-                                FROM orders o JOIN restaurants r ON o.restaurant_id = r.id
-                                JOIN users u ON o.user_id = u.id
-                                WHERE o.id = ? AND o.user_id = ?''', (order_id, current_user.id)).fetchone()
-        if not order:
-            flash('Order not found!', 'error')
-            return redirect(url_for('orders'))
-
-        items = conn.execute('''SELECT m.name, oi.quantity, oi.price, (oi.quantity * oi.price) AS subtotal
-                                FROM order_items oi JOIN menu_items m ON oi.menu_item_id = m.id
-                                WHERE oi.order_id = ?''', (order_id,)).fetchall()
-
-        total = sum(it['subtotal'] for it in items)
-        order = conn.execute('''
-            SELECT o.*, r.name AS restaurant_name, u.username, u.email
-            FROM orders o
-            JOIN restaurants r ON o.restaurant_id = r.id
-            JOIN users u ON o.user_id = u.id
-            WHERE o.id = ? AND o.user_id = ?
-        ''', (order_id, current_user.id)).fetchone()
-
-        if not order:
-            flash('Order not found!', 'error')
-            return redirect(url_for('orders'))
-
+@app.route('/invoice/<int:order_id>/download') 
+@login_required 
+def invoice_download(order_id): 
+    conn = get_db() 
+    try: 
+        order = conn.execute(''' 
+        SELECT o.*, r.name AS restaurant_name, u.username, u.email
+        FROM orders o 
+        JOIN restaurants r ON o.restaurant_id = r.id 
+        JOIN users u ON o.user_id = u.id 
+        WHERE o.id = ? AND o.user_id = ? 
+        ''', (order_id, current_user.id)).fetchone() 
+        if not order: 
+            flash('Order not found!', 'error') 
+        return redirect(url_for('orders')) 
         items = conn.execute('''
-            SELECT m.name, oi.quantity, oi.price, (oi.quantity * oi.price) AS subtotal
-            FROM order_items oi
-            JOIN menu_items m ON oi.menu_item_id = m.id
-            WHERE oi.order_id = ?
+        SELECT m.name, oi.quantity, oi.price, (oi.quantity * oi.price) AS subtotal 
+        FROM order_items oi 
+        JOIN menu_items m ON oi.menu_item_id = m.id 
+        WHERE oi.order_id = ? 
         ''', (order_id,)).fetchall()
-
-        # Totals
-        total = sum(item['subtotal'] for item in items)
-        cgst = total * 0.09
-        sgst = total * 0.09
-        gst_total = cgst + sgst
-        total_incl_gst = total + gst_total
-        final_amount = total_incl_gst - order['coins_used']
-
-        html = render_template('invoice.html', order=order, items=items, total=total,
-                               cgst=cgst, sgst=sgst, gst_total=gst_total,
-                               total_incl_gst=total_incl_gst, final_amount=final_amount, mode="pdf")
-
+        total = sum(item['subtotal'] for item in items) 
+        cgst = total * 0.09 
+        sgst = total * 0.09 
+        gst_total = cgst + sgst 
+        total_incl_gst = total + gst_total 
         final_amount = total_incl_gst - (order['coins_used'] / 100)
-        html = render_template('invoice.html',
-                               order=order,
-                               items=items,
-                               total=total,
-                               cgst=cgst,
-                               sgst=sgst,
-                               gst_total=gst_total,
-                               total_incl_gst=total_incl_gst,
-                               final_amount=final_amount,
-                               mode="pdf")
-        # PDF generation 
-        config = get_pdfkit_config()
-        pdf = pdfkit.from_string(html, False, configuration=config)
-        response = make_response(pdf)
-        coins_used = order['coins_used'] or 0
-        final_amount = total_incl_gst - (coins_used / 100)
-
-        # Build PDF using ReportLab Platypus
-        buffer = BytesIO()
-        doc = SimpleDocTemplate(buffer, pagesize=A4,
-                                rightMargin=20*mm, leftMargin=20*mm,
-                                topMargin=20*mm, bottomMargin=20*mm)
-
-        styles = getSampleStyleSheet()
-        styles.add(ParagraphStyle(name='Right', parent=styles['Normal'], alignment=2))
-        styles.add(ParagraphStyle(name='Heading', parent=styles['Heading1'], fontSize=16, leading=18))
-        styles.add(ParagraphStyle(name='Small', parent=styles['Normal'], fontSize=9))
-
-        elements = []
-
-        # Header
-        elements.append(Paragraph("Invoice", styles['Heading']))
-        elements.append(Spacer(1, 6))
-
-        # Company / Restaurant & Customer info table
-        left_info = [
-            Paragraph(f"<b>Restaurant:</b> {order['restaurant_name']}", styles['Normal']),
-            Paragraph(f"<b>Order ID:</b> {order['id']}", styles['Normal']),
-            Paragraph(f"<b>Order Date:</b> {order['created_at']}", styles['Normal'])
-        ]
-        right_info = [
-            Paragraph(f"<b>Customer:</b> {order['username']}", styles['Normal']),
-            Paragraph(f"<b>Email:</b> {order['email']}", styles['Normal']),
-            Paragraph(
-    f"<b>Delivery Address:</b> {order['delivery_address'] if 'delivery_address' in order.keys() else ''}",
-    styles['Normal']
-)
-
-        ]
-
-        info_data = [
-            [left_info, right_info]
-        ]
-        info_table = Table(info_data, colWidths=[95*mm, 95*mm])
-        info_table.setStyle(TableStyle([
-            ('VALIGN', (0,0), (-1,-1), 'TOP'),
-            ('LEFTPADDING', (0,0), (-1,-1), 0),
-            ('RIGHTPADDING', (0,0), (-1,-1), 0),
-        ]))
-        elements.append(info_table)
-        elements.append(Spacer(1, 12))
-
-        # Items table header
-        item_table_data = []
-        item_table_data.append([Paragraph('<b>Item</b>', styles['Normal']),
-                                Paragraph('<b>Qty</b>', styles['Normal']),
-                                Paragraph('<b>Price</b>', styles['Normal']),
-                                Paragraph('<b>Subtotal</b>', styles['Normal'])])
-
-        # Items rows
-        for it in items:
-            item_table_data.append([
-                Paragraph(str(it['name']), styles['Normal']),
-                Paragraph(str(it['quantity']), styles['Normal']),
-                Paragraph(f"₹{it['price']:.2f}", styles['Normal']),
-                Paragraph(f"₹{it['subtotal']:.2f}", styles['Normal'])
-            ])
-
-        # Items table style
-        item_table = Table(item_table_data, colWidths=[90*mm, 20*mm, 35*mm, 35*mm], hAlign='LEFT')
-        item_table.setStyle(TableStyle([
-            ('GRID', (0,0), (-1,-1), 0.5, colors.grey),
-            ('BACKGROUND', (0,0), (-1,0), colors.whitesmoke),
-            ('ALIGN', (1,1), (-1,-1), 'CENTER'),
-            ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-            ('LEFTPADDING', (0,0), (-1,-1), 6),
-            ('RIGHTPADDING', (0,0), (-1,-1), 6),
-        ]))
-        elements.append(item_table)
-        elements.append(Spacer(1, 12))
-
-        # Totals table (right aligned)
-        totals_data = []
-        totals_data.append([Paragraph('Subtotal', styles['Normal']), Paragraph(f"₹{total:.2f}", styles['Right'])])
-        totals_data.append([Paragraph('CGST (9%)', styles['Normal']), Paragraph(f"₹{cgst:.2f}", styles['Right'])])
-        totals_data.append([Paragraph('SGST (9%)', styles['Normal']), Paragraph(f"₹{sgst:.2f}", styles['Right'])])
-        totals_data.append([Paragraph('Total (incl. GST)', styles['Normal']), Paragraph(f"₹{total_incl_gst:.2f}", styles['Right'])])
-        totals_data.append([Paragraph(f'Coins Used', styles['Normal']), Paragraph(f"₹{(coins_used/100):.2f}", styles['Right'])])
-        totals_data.append([Paragraph('<b>Final Amount</b>', styles['Normal']), Paragraph(f"<b>₹{final_amount:.2f}</b>", styles['Right'])])
-
-        totals_table = Table(totals_data, colWidths=[130*mm, 60*mm], hAlign='RIGHT')
-        totals_table.setStyle(TableStyle([
-            ('ALIGN', (1,0), (-1,-1), 'RIGHT'),
-            ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-            ('LINEABOVE', (-2,-1), (-1,-1), 1, colors.black),
-            ('TOPPADDING', (0,0), (-1,-1), 4),
-            ('BOTTOMPADDING', (0,0), (-1,-1), 4),
-        ]))
-        elements.append(totals_table)
-        elements.append(Spacer(1, 8))
-
-        # Footer / notes
-        notes = Paragraph("Thank you for ordering with us!", styles['Small'])
-        elements.append(notes)
-
-        doc.build(elements)
-
-        buffer.seek(0)
-        pdf_bytes = buffer.getvalue()
-        buffer.close()
-
-        response = make_response(pdf_bytes)
-        response.headers['Content-Type'] = 'application/pdf'
-        response.headers['Content-Disposition'] = f'attachment; filename=invoice_{order_id}.pdf'
-        return response
-
-    finally:
-        conn.close()
+        html = render_template('invoice.html', 
+        order=order, 
+        items=items, 
+        total=total, 
+        cgst=cgst, 
+        sgst=sgst, 
+        gst_total=gst_total, 
+        total_incl_gst=total_incl_gst, 
+        final_amount=final_amount, mode="pdf") 
+        # PDF generation config = get_pdfkit_config() pdf = pdfkit.from_string(html, False, configuration=config) 
+        response = make_response(pdf) 
+        response.headers['Content-Type'] = 'application/pdf' 
+        response.headers['Content-Disposition'] = f'attachment; filename=invoice_{order_id}.pdf' 
+        return response 
+    finally: conn.close()
 
 @app.route('/invoice-pdf/<int:order_id>')
 @login_required
@@ -755,9 +551,8 @@ def admin_dashboard():
     if current_user.username != "veenamalipatil":
         flash("Unauthorized access!", "error")
         return redirect(url_for("index"))
-
     conn = get_db()
-    conn.row_factory = sqlite3.Row  # Allows dict-style access
+    conn.row_factory = sqlite3.Row  
 
     # Fetch all data from correct tables
     users = conn.execute("SELECT * FROM users").fetchall()
@@ -785,7 +580,6 @@ def admin_dashboard():
     # Calculate total revenue
     total_revenue = conn.execute("SELECT SUM(final_amount) FROM orders").fetchone()[0]
     total_revenue = total_revenue if total_revenue else 0
-
     return render_template(
         "admin_dashboard.html",
         users=users,
@@ -807,17 +601,15 @@ def add_vendor():
         location = request.form.get("location", "").strip()
         rating_raw = request.form.get("rating", 0)
         description = request.form.get("description", "")
-
         # try to convert rating to float (defaults to 0.0 on failure)
         try:
             rating = float(rating_raw)
         except (ValueError, TypeError):
             rating = 0.0
-
         # ---------- Image Upload ----------
         image_file = request.files.get("image")
-        image_url = ""  # store a web-friendly path or empty string
-
+        image_url = ""  
+        # store a web-friendly path or empty string
         if image_file and image_file.filename:
             filename = secure_filename(image_file.filename)
             # ensure unique filenames to avoid overwrites
@@ -834,8 +626,7 @@ def add_vendor():
 
             # store the relative URL in DB (use forward slashes)
             image_url = f"/{UPLOAD_FOLDER.replace(os.sep, '/')}/{filename}".lstrip("/")
-
-        # ---------- Insert into SQLite ----------
+# ---------- Insert into SQLite ----------
         conn = get_db()
         try:
             cur = conn.cursor()
@@ -846,35 +637,30 @@ def add_vendor():
             conn.commit()
         finally:
             conn.close()
-
         # redirect to your actual admin dashboard route
         return redirect(url_for("admin_dashboard"))
-
     return render_template("add_vendor.html")
 
+# Edit vendor
 @app.route('/edit_vendor/<int:id>', methods=['GET', 'POST'])
 @login_required
 def edit_vendor(id):
     if not is_admin():
         flash("Unauthorized access!", "error")
         return redirect(url_for('index'))
-
     conn = get_db()
     try:
         vendor = conn.execute("SELECT * FROM restaurants WHERE id = ?", (id,)).fetchone()
-
         if request.method == "POST":
             name = request.form.get('name', vendor['name']).strip()
             cuisine = request.form.get('cuisine', vendor['cuisine']).strip()
             location = request.form.get('location', vendor['location']).strip()
             rating_raw = request.form.get('rating', vendor['rating'])
             description = request.form.get('description', vendor['description'] or "")
-
             try:
                 rating = float(rating_raw)
             except (ValueError, TypeError):
                 rating = vendor['rating'] or 0.0
-
             # Optional image replacement
             image_file = request.files.get("image")
             image_url = vendor['image_url'] or ""
@@ -887,20 +673,16 @@ def edit_vendor(id):
                 os.makedirs(os.path.dirname(save_path), exist_ok=True)
                 image_file.save(save_path)
                 image_url = f"/{UPLOAD_FOLDER.replace(os.sep, '/')}/{filename}".lstrip("/")
-
             conn.execute("""
                 UPDATE restaurants
                 SET name = ?, cuisine = ?, location = ?, rating = ?, image_url = ?, description = ?
                 WHERE id = ?
             """, (name, cuisine, location, rating, image_url, description, id))
             conn.commit()
-
             flash("Vendor updated successfully!", "success")
             return redirect(url_for('admin_dashboard'))
-
     finally:
         conn.close()
-
     return render_template("edit_vendor.html", vendor=vendor)
 
 @app.route('/delete_vendor/<int:id>', methods=['POST'])
@@ -909,11 +691,9 @@ def delete_vendor(id):
     if not is_admin():
         flash("Unauthorized access!", "error")
         return redirect(url_for('index'))
-
     conn = get_db()
     conn.execute("DELETE FROM restaurants WHERE id = ?", (id,))
     conn.commit()
-
     flash("Vendor deleted successfully!", "success")
     return redirect(url_for('admin_dashboard'))
 
@@ -923,7 +703,6 @@ def delete_user(id):
     if current_user.username != "veenamalipatil":
         flash("Unauthorized", "error")
         return redirect(url_for("index"))
-
     conn = get_db()
     conn.execute("DELETE FROM users WHERE id = ?", (id,))
     conn.commit()
@@ -934,25 +713,19 @@ def delete_user(id):
 @login_required
 def add_menu():
     conn = get_db()
-
     if request.method == 'POST':
         name = request.form['name']
         price = request.form['price']
         restaurant_id = request.form['restaurant_id']
-
         conn.execute("""
             INSERT INTO menu_items (name, price, restaurant_id)
             VALUES (?, ?, ?)
         """, (name, price, restaurant_id))
-
         conn.commit()
         flash("Menu item added successfully!", "success")
         return redirect(url_for('admin_dashboard'))
-
     restaurants = conn.execute("SELECT id, name FROM restaurants").fetchall()
-    
     return render_template("add_menu.html", restaurants=restaurants)
-
 
 # Run
 if __name__ == '__main__':
