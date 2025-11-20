@@ -41,13 +41,10 @@
 
      <script>
 function goBack() {
-    if (document.referrer && document.referrer !== window.location.href) {
-        window.history.back();
-    } else {
-        window.location.href = "{{ url_for('index') }}"; // fallback to home page
-    }
+    window.location.href = document.referrer;
 }
 </script>
+
 
     
 </head>
