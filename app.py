@@ -38,10 +38,6 @@ login_manager.login_view = 'login'
 
 
 def get_pdfkit_config():
-    """
-    Automatically detect wkhtmltopdf path on Windows, Linux, or Mac.
-    Falls back to common installation paths and raises FileNotFoundError if not found.
-    """
     # If wkhtmltopdf is in PATH
     wkhtml_path = shutil.which("wkhtmltopdf")
     if wkhtml_path:
@@ -247,83 +243,15 @@ def restaurant(restaurant_id):
 @app.route('/add_to_cart', methods=['POST'])
 @login_required
 def add_to_cart():
-    """
-    Adds the posted item_id and quantity to the session cart.
-    Supports AJAX requests (returns JSON) and normal form submits (redirects to cart).
-    """
     item_id = request.form.get('item_id')
-<<<<<<< HEAD
-    try:
-        quantity = int(request.form.get('quantity', 1))
-    except (ValueError, TypeError):
-        quantity = 1
-
-    if not item_id:
-        # Bad request
-        if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.accept_mimetypes.accept_json:
-            return jsonify({'status': 'error', 'message': 'Missing item_id'}), 400
-        flash('Invalid item', 'error')
-        return redirect(url_for('index'))
-
-    # Initialize cart if needed
-    if 'cart' not in session or not isinstance(session.get('cart'), dict):
-=======
     quantity = int(request.form.get('quantity', 1))
     if 'cart' not in session:
->>>>>>> bb863e90e09fe5591d6cc3b321b9a2cdc779655b
         session['cart'] = {}
     cart = session['cart']
-
-    # Convert item_id to string to avoid issues with sqlite/keys
-    item_key = str(item_id)
-    cart[item_key] = cart.get(item_key, 0) + max(1, quantity)
-
-    # Persist session and mark modified
+    cart[item_id] = cart.get(item_id, 0) + quantity
     session['cart'] = cart
-    session.modified = True
-
-    # Prepare cart summary to return to frontend
-    cart_total_quantity = sum(int(v) for v in cart.values()) if cart else 0
-
-    # If this was an AJAX request, return JSON (AJAX frontend expects JSON)
-    if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.accept_mimetypes.accept_json:
-        return jsonify({
-            'status': 'success',
-            'message': 'Item added to cart',
-            'cart_total_quantity': cart_total_quantity,
-            'item_id': item_key,
-            'quantity': cart[item_key]
-        }), 200
-
-    # Fallback: flash + redirect to cart for non-AJAX form submits
     flash('Item added to cart!', 'success')
     return redirect(url_for('cart'))
-<<<<<<< HEAD
-@app.route('/cart')
-@login_required
-def cart():
-    cart = session.get('cart', {})
-
-    # Fetch item details from DB
-    items = []
-    total_amount = 0
-
-    for item_id, qty in cart.items():
-        menu_item = Menu_item.query.get(int(item_id))
-        if menu_item:
-            item_total = menu_item.price * qty
-            total_amount += item_total
-
-            items.append({
-                "id": item_id,
-                "name": menu_item.name,
-                "quantity": qty,
-                "price": menu_item.price,
-                "total": item_total
-            })
-
-    return render_template("cart.html", items=items, total_amount=total_amount)
-=======
 
 @app.route('/cart')
 @login_required
@@ -366,7 +294,6 @@ def update_cart():
             cart.pop(item_id, None)
         session['cart'] = cart
     return redirect(url_for('cart'))
->>>>>>> bb863e90e09fe5591d6cc3b321b9a2cdc779655b
 
 
 # Checkout & order placement

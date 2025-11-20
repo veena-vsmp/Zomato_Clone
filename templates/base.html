@@ -39,7 +39,6 @@
       }
     </style>
 
-<<<<<<< HEAD
      <script>
 function goBack() {
     if (document.referrer && document.referrer !== window.location.href) {
@@ -49,17 +48,8 @@ function goBack() {
     }
 }
 </script>
-=======
-    <script>
-      function goBack() {
-          if (document.referrer && document.referrer !== window.location.href) {
-              window.history.back();
-          } else {
-              window.location.href = "{{ url_for('index') }}";
-          }
-      }
-    </script>
->>>>>>> bb863e90e09fe5591d6cc3b321b9a2cdc779655b
+
+    
 </head>
 
 <body>
