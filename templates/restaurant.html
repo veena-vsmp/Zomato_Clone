@@ -39,7 +39,21 @@ function updatePrice(input) {
         <div class="menu-category">
             <h3>{{ category }}</h3>
             <div class="menu-items">
+                
                 {% for item in items %}
+<<<<<<< HEAD
+                <div class="menu-item">
+                    <div class="menu-item-info">
+                        <h4>
+                            {% if item.is_veg %}
+                                <span class="veg-badge"></span>
+                            {% else %}
+                                <span class="non-veg-badge"></span>
+                            {% endif %}
+                            {{ item.name }}
+                        </h4>
+                        <p>{{ item.description }}</p>
+=======
                     <div class="menu-item">
                         <div class="menu-item-info">
                             <h4>
@@ -72,11 +86,55 @@ function updatePrice(input) {
         <a href="{{ url_for('login') }}" class="btn btn-sm">Login to Order</a>
     {% endif %}
 </div>
+>>>>>>> bb863e90e09fe5591d6cc3b321b9a2cdc779655b
                     </div>
+
+                    <div style="display: flex; align-items: center; gap: 1rem;">
+
+                        <!-- Dynamic Price Display -->
+                        <span class="price" data-base-price="{{ item.price }}">
+                            ₹{{ "%.2f"|format(item.price) }}
+                        </span>
+
+                        {% if current_user.is_authenticated %}
+                        <form method="POST" action="{{ url_for('add_to_cart') }}" class="add-to-cart-form">
+
+                            <input type="hidden" name="item_id" value="{{ item.id }}">
+
+                            <!-- Quantity Input (Updates Price) -->
+                            <input type="number" name="quantity" value="1" min="1" max="10"
+                                   class="quantity-input"
+                                   oninput="updatePrice(this)">
+
+                            <!-- Correct Add Button — No Redirect -->
+<a href="{{ url_for('cart') }}"><button type="submit" class="btn btn-sm">Add to Cart</button></a>
+                        </form>
+                        {% else %}
+                            <a href="{{ url_for('login') }}" class="btn btn-sm">Login to Order</a>
+                        {% endif %}
+                    </div>
+                </div>
                 {% endfor %}
+                
             </div>
         </div>
     {% endfor %}
 </div>
+
+<!-- JS for Live Price Update -->
+<script>
+function updatePrice(input) {
+    let quantity = parseInt(input.value);
+    let priceSpan = input.closest(".menu-item").querySelector(".price");
+    let basePrice = parseFloat(priceSpan.getAttribute("data-base-price"));
+
+    if (quantity < 1) quantity = 1;
+
+    let totalPrice = basePrice * quantity;
+    priceSpan.textContent = "₹" + totalPrice.toFixed(2);
+}
+</script>
+
 {% endblock %}
-{% block footer %} {% endblock %}
+
+{% block footer %}{% endblock %}

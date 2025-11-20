@@ -39,15 +39,17 @@
       }
     </style>
 
-    <script>
-      function goBack() {
-          if (document.referrer && document.referrer !== window.location.href) {
-              window.history.back();
-          } else {
-              window.location.href = "{{ url_for('index') }}";
-          }
-      }
-    </script>
+     <script>
+function goBack() {
+    if (document.referrer && document.referrer !== window.location.href) {
+        window.history.back();
+    } else {
+        window.location.href = "{{ url_for('index') }}"; // fallback to home page
+    }
+}
+</script>
+
+    
 </head>
 
 <body>
