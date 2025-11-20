@@ -38,10 +38,6 @@ login_manager.login_view = 'login'
 
 
 def get_pdfkit_config():
-    """
-    Automatically detect wkhtmltopdf path on Windows, Linux, or Mac.
-    Falls back to common installation paths and raises FileNotFoundError if not found.
-    """
     # If wkhtmltopdf is in PATH
     wkhtml_path = shutil.which("wkhtmltopdf")
     if wkhtml_path:
@@ -506,20 +502,6 @@ def vendor_register():
 def invoice(order_id):
     conn = get_db()
     try:
-        order = conn.execute('''SELECT o.*, r.name AS restaurant_name, u.username, u.email
-                                FROM orders o JOIN restaurants r ON o.restaurant_id = r.id
-                                JOIN users u ON o.user_id = u.id
-                                WHERE o.id = ? AND o.user_id = ?''',
-                             (order_id, current_user.id)).fetchone()
-        if not order:
-            flash('Order not found!', 'error')
-            return redirect(url_for('orders'))
-
-        items = conn.execute('''SELECT m.name, oi.quantity, oi.price, (oi.quantity * oi.price) AS subtotal
-                                FROM order_items oi JOIN menu_items m ON oi.menu_item_id = m.id
-                                WHERE oi.order_id = ?''', (order_id,)).fetchall()
-
-        total = sum(it['subtotal'] for it in items)
         order = conn.execute('''
             SELECT o.*, r.name AS restaurant_name, u.username, u.email
             FROM orders o
@@ -527,62 +509,47 @@ def invoice(order_id):
             JOIN users u ON o.user_id = u.id
             WHERE o.id = ? AND o.user_id = ?
         ''', (order_id, current_user.id)).fetchone()
+
         if not order:
             flash('Order not found!', 'error')
             return redirect(url_for('orders'))
+
         items = conn.execute('''
-            SELECT m.name, oi.quantity, oi.price, (oi.quantity * oi.price) AS subtotal
+            SELECT m.name, oi.quantity, oi.price,
+                   (oi.quantity * oi.price) AS subtotal
             FROM order_items oi
             JOIN menu_items m ON oi.menu_item_id = m.id
             WHERE oi.order_id = ?
         ''', (order_id,)).fetchall()
-        # Calculate totals
-        total = sum(item['subtotal'] for item in items)
+
+        total = sum(i['subtotal'] for i in items)
         cgst = total * 0.09
         sgst = total * 0.09
-        gst_total = cgst + sgst
-        total_incl_gst = total + gst_total
-        final_amount = total_incl_gst - order['coins_used']
+        total_incl_gst = total + cgst + sgst
+        
+        coins_used = order['coins_used'] or 0
+        final_amount = total_incl_gst - (coins_used / 100)
 
-        return render_template('invoice.html', order=order, items=items, total=total,
-                               cgst=cgst, sgst=sgst, gst_total=gst_total,
-                               total_incl_gst=total_incl_gst, final_amount=final_amount, mode="html")
-        final_amount = total_incl_gst - (order['coins_used'] /100)
-        final_amount = total_incl_gst - (order['coins_used'] /100) if order['coins_used'] is not None else total_incl_gst
-        return render_template('invoice.html',
-                               order=order,
-                               items=items,
-                               total=total,
-                               cgst=cgst,
-                               sgst=sgst,
-                               gst_total=gst_total,
-                               total_incl_gst=total_incl_gst,
-                               final_amount=final_amount,
-                               mode="html")
+        return render_template(
+            'invoice.html',
+            order=order,
+            items=items,
+            total=total,
+            cgst=cgst,
+            sgst=sgst,
+            total_incl_gst=total_incl_gst,
+            final_amount=final_amount,
+            mode="html"
+        )
+
     finally:
         conn.close()
 
 @app.route('/invoice/<int:order_id>/download')
 @login_required
 def invoice_download(order_id):
-    """
-    Generate a professional-style invoice PDF using ReportLab (pure Python).
-    """
     conn = get_db()
     try:
-        order = conn.execute('''SELECT o.*, r.name AS restaurant_name, u.username, u.email
-                                FROM orders o JOIN restaurants r ON o.restaurant_id = r.id
-                                JOIN users u ON o.user_id = u.id
-                                WHERE o.id = ? AND o.user_id = ?''', (order_id, current_user.id)).fetchone()
-        if not order:
-            flash('Order not found!', 'error')
-            return redirect(url_for('orders'))
-
-        items = conn.execute('''SELECT m.name, oi.quantity, oi.price, (oi.quantity * oi.price) AS subtotal
-                                FROM order_items oi JOIN menu_items m ON oi.menu_item_id = m.id
-                                WHERE oi.order_id = ?''', (order_id,)).fetchall()
-
-        total = sum(it['subtotal'] for it in items)
         order = conn.execute('''
             SELECT o.*, r.name AS restaurant_name, u.username, u.email
             FROM orders o
@@ -596,153 +563,44 @@ def invoice_download(order_id):
             return redirect(url_for('orders'))
 
         items = conn.execute('''
-            SELECT m.name, oi.quantity, oi.price, (oi.quantity * oi.price) AS subtotal
+            SELECT m.name, oi.quantity, oi.price,
+                   (oi.quantity * oi.price) AS subtotal
             FROM order_items oi
             JOIN menu_items m ON oi.menu_item_id = m.id
             WHERE oi.order_id = ?
         ''', (order_id,)).fetchall()
 
-        # Totals
-        total = sum(item['subtotal'] for item in items)
+        total = sum(i['subtotal'] for i in items)
         cgst = total * 0.09
         sgst = total * 0.09
-        gst_total = cgst + sgst
-        total_incl_gst = total + gst_total
-        final_amount = total_incl_gst - order['coins_used']
+        total_incl_gst = total + cgst + sgst
 
-        html = render_template('invoice.html', order=order, items=items, total=total,
-                               cgst=cgst, sgst=sgst, gst_total=gst_total,
-                               total_incl_gst=total_incl_gst, final_amount=final_amount, mode="pdf")
-
-        final_amount = total_incl_gst - (order['coins_used'] / 100)
-        html = render_template('invoice.html',
-                               order=order,
-                               items=items,
-                               total=total,
-                               cgst=cgst,
-                               sgst=sgst,
-                               gst_total=gst_total,
-                               total_incl_gst=total_incl_gst,
-                               final_amount=final_amount,
-                               mode="pdf")
-        # PDF generation 
-        config = get_pdfkit_config()
-        pdf = pdfkit.from_string(html, False, configuration=config)
-        response = make_response(pdf)
         coins_used = order['coins_used'] or 0
         final_amount = total_incl_gst - (coins_used / 100)
 
-        # Build PDF using ReportLab Platypus
-        buffer = BytesIO()
-        doc = SimpleDocTemplate(buffer, pagesize=A4,
-                                rightMargin=20*mm, leftMargin=20*mm,
-                                topMargin=20*mm, bottomMargin=20*mm)
+        html = render_template(
+            'invoice.html',
+            order=order,
+            items=items,
+            total=total,
+            cgst=cgst,
+            sgst=sgst,
+            total_incl_gst=total_incl_gst,
+            final_amount=final_amount,
+            mode="pdf"
+        )
 
-        styles = getSampleStyleSheet()
-        styles.add(ParagraphStyle(name='Right', parent=styles['Normal'], alignment=2))
-        styles.add(ParagraphStyle(name='Heading', parent=styles['Heading1'], fontSize=16, leading=18))
-        styles.add(ParagraphStyle(name='Small', parent=styles['Normal'], fontSize=9))
+        config = get_pdfkit_config()
+        pdf = pdfkit.from_string(html, False, configuration=config)
 
-        elements = []
-
-        # Header
-        elements.append(Paragraph("Invoice", styles['Heading']))
-        elements.append(Spacer(1, 6))
-
-        # Company / Restaurant & Customer info table
-        left_info = [
-            Paragraph(f"<b>Restaurant:</b> {order['restaurant_name']}", styles['Normal']),
-            Paragraph(f"<b>Order ID:</b> {order['id']}", styles['Normal']),
-            Paragraph(f"<b>Order Date:</b> {order['created_at']}", styles['Normal'])
-        ]
-        right_info = [
-            Paragraph(f"<b>Customer:</b> {order['username']}", styles['Normal']),
-            Paragraph(f"<b>Email:</b> {order['email']}", styles['Normal']),
-            Paragraph(
-    f"<b>Delivery Address:</b> {order['delivery_address'] if 'delivery_address' in order.keys() else ''}",
-    styles['Normal']
-)
-
-        ]
-
-        info_data = [
-            [left_info, right_info]
-        ]
-        info_table = Table(info_data, colWidths=[95*mm, 95*mm])
-        info_table.setStyle(TableStyle([
-            ('VALIGN', (0,0), (-1,-1), 'TOP'),
-            ('LEFTPADDING', (0,0), (-1,-1), 0),
-            ('RIGHTPADDING', (0,0), (-1,-1), 0),
-        ]))
-        elements.append(info_table)
-        elements.append(Spacer(1, 12))
-
-        # Items table header
-        item_table_data = []
-        item_table_data.append([Paragraph('<b>Item</b>', styles['Normal']),
-                                Paragraph('<b>Qty</b>', styles['Normal']),
-                                Paragraph('<b>Price</b>', styles['Normal']),
-                                Paragraph('<b>Subtotal</b>', styles['Normal'])])
-
-        # Items rows
-        for it in items:
-            item_table_data.append([
-                Paragraph(str(it['name']), styles['Normal']),
-                Paragraph(str(it['quantity']), styles['Normal']),
-                Paragraph(f"₹{it['price']:.2f}", styles['Normal']),
-                Paragraph(f"₹{it['subtotal']:.2f}", styles['Normal'])
-            ])
-
-        # Items table style
-        item_table = Table(item_table_data, colWidths=[90*mm, 20*mm, 35*mm, 35*mm], hAlign='LEFT')
-        item_table.setStyle(TableStyle([
-            ('GRID', (0,0), (-1,-1), 0.5, colors.grey),
-            ('BACKGROUND', (0,0), (-1,0), colors.whitesmoke),
-            ('ALIGN', (1,1), (-1,-1), 'CENTER'),
-            ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-            ('LEFTPADDING', (0,0), (-1,-1), 6),
-            ('RIGHTPADDING', (0,0), (-1,-1), 6),
-        ]))
-        elements.append(item_table)
-        elements.append(Spacer(1, 12))
-
-        # Totals table (right aligned)
-        totals_data = []
-        totals_data.append([Paragraph('Subtotal', styles['Normal']), Paragraph(f"₹{total:.2f}", styles['Right'])])
-        totals_data.append([Paragraph('CGST (9%)', styles['Normal']), Paragraph(f"₹{cgst:.2f}", styles['Right'])])
-        totals_data.append([Paragraph('SGST (9%)', styles['Normal']), Paragraph(f"₹{sgst:.2f}", styles['Right'])])
-        totals_data.append([Paragraph('Total (incl. GST)', styles['Normal']), Paragraph(f"₹{total_incl_gst:.2f}", styles['Right'])])
-        totals_data.append([Paragraph(f'Coins Used', styles['Normal']), Paragraph(f"₹{(coins_used/100):.2f}", styles['Right'])])
-        totals_data.append([Paragraph('<b>Final Amount</b>', styles['Normal']), Paragraph(f"<b>₹{final_amount:.2f}</b>", styles['Right'])])
-
-        totals_table = Table(totals_data, colWidths=[130*mm, 60*mm], hAlign='RIGHT')
-        totals_table.setStyle(TableStyle([
-            ('ALIGN', (1,0), (-1,-1), 'RIGHT'),
-            ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-            ('LINEABOVE', (-2,-1), (-1,-1), 1, colors.black),
-            ('TOPPADDING', (0,0), (-1,-1), 4),
-            ('BOTTOMPADDING', (0,0), (-1,-1), 4),
-        ]))
-        elements.append(totals_table)
-        elements.append(Spacer(1, 8))
-
-        # Footer / notes
-        notes = Paragraph("Thank you for ordering with us!", styles['Small'])
-        elements.append(notes)
-
-        doc.build(elements)
-
-        buffer.seek(0)
-        pdf_bytes = buffer.getvalue()
-        buffer.close()
-
-        response = make_response(pdf_bytes)
+        response = make_response(pdf)
         response.headers['Content-Type'] = 'application/pdf'
         response.headers['Content-Disposition'] = f'attachment; filename=invoice_{order_id}.pdf'
         return response
 
     finally:
         conn.close()
+
 
 @app.route('/invoice-pdf/<int:order_id>')
 @login_required
