@@ -1,6 +1,6 @@
 from flask import (
     Flask, render_template, request, redirect, url_for,
-    session, flash, jsonify, make_response
+    session, flash, jsonify, make_response, send_file
 )
 from flask_login import (
     LoginManager, UserMixin, login_user, logout_user,
@@ -10,22 +10,23 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 import sqlite3
 import os
-from datetime import datetime, timedelta, timezone
+import shutil
+import pdfkit
+import json
+import re
+from datetime import datetime
 from io import BytesIO
-
-# ReportLab imports for PDF generation (professional layout)
 from reportlab.lib.pagesizes import A4
 from reportlab.lib import colors
 from reportlab.lib.units import mm
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
-
-UPLOAD_FOLDER = "static/uploads"
+# Ensure upload folder exists
+UPLOAD_FOLDER = "static/restaurants"
 
 # Create folder if it does not exist
 if not os.path.exists(UPLOAD_FOLDER):
     os.makedirs(UPLOAD_FOLDER)
-
 
 # App config
 app = Flask(__name__)
@@ -36,13 +37,49 @@ login_manager.init_app(app)
 login_manager.login_view = 'login'
 
 
+def get_pdfkit_config():
+    """
+    Automatically detect wkhtmltopdf path on Windows, Linux, or Mac.
+    Falls back to common installation paths and raises FileNotFoundError if not found.
+    """
+    # If wkhtmltopdf is in PATH
+    wkhtml_path = shutil.which("wkhtmltopdf")
+    if wkhtml_path:
+        return pdfkit.configuration(wkhtmltopdf=wkhtml_path)
+
+    # Windows common install paths
+    windows_path = r"C:\Program Files\wkhtmltopdf\bin\wkhtmltopdf.exe"
+    if os.path.exists(windows_path):
+        return pdfkit.configuration(wkhtmltopdf=windows_path)
+
+    windows_path2 = r"C:\Program Files (x86)\wkhtmltopdf\bin\wkhtmltopdf.exe"
+    if os.path.exists(windows_path2):
+        return pdfkit.configuration(wkhtmltopdf=windows_path2)
+
+    # Common Linux/macOS paths
+    linux_path = "/usr/bin/wkhtmltopdf"
+    if os.path.exists(linux_path):
+        return pdfkit.configuration(wkhtmltopdf=linux_path)
+
+    mac_path = "/usr/local/bin/wkhtmltopdf"
+    if os.path.exists(mac_path):
+        return pdfkit.configuration(wkhtmltopdf=mac_path)
+
+    # Nothing found
+    raise FileNotFoundError("wkhtmltopdf not found! Install from: https://wkhtmltopdf.org/downloads/")
+
+
+
 # DB helper & user model
+
 def get_db():
     conn = sqlite3.connect('foodapp.db')
     conn.row_factory = sqlite3.Row
     return conn
 
-
+# --------------------------
+# User model
+# --------------------------
 class User(UserMixin):
     def __init__(self, id, username, email, coin_balance):
         self.id = id
@@ -54,13 +91,12 @@ class User(UserMixin):
 def load_user(user_id):
     conn = get_db()
     try:
-        user = conn.execute('SELECT * FROM users WHERE id = ?', (user_id,)).fetchone()
+        u = conn.execute('SELECT * FROM users WHERE id = ?', (user_id,)).fetchone()
     finally:
         conn.close()
-    if user:
-        return User(user['id'], user['username'], user['email'], user['coin_balance'])
+    if u:
+        return User(u['id'], u['username'], u['email'], u['coin_balance'])
     return None
-
 # Context processors
 @app.context_processor
 def inject_cart():
@@ -68,19 +104,19 @@ def inject_cart():
     total_quantity = sum(cart.values()) if cart else 0
     return dict(cart_total_quantity=total_quantity)
 
-
 @app.context_processor
 def inject_user():
     if current_user.is_authenticated:
         conn = get_db()
         try:
-            user = conn.execute('SELECT coin_balance FROM users WHERE id = ?', (current_user.id,)).fetchone()
+            u = conn.execute('SELECT coin_balance FROM users WHERE id = ?', (current_user.id,)).fetchone()
         finally:
             conn.close()
-        return {'user_coin_balance': user['coin_balance'] if user else 0}
+        return {'user_coin_balance': u['coin_balance'] if u else 0}
     return {'user_coin_balance': 0}
-
-# Routes: public & auth
+# --------------------------
+# Public & Auth routes
+# --------------------------
 @app.route('/')
 def index():
     conn = get_db()
@@ -90,30 +126,24 @@ def index():
 
         query = 'SELECT * FROM restaurants WHERE 1=1'
         params = []
-
         if search_query:
             query += ' AND (name LIKE ? OR cuisine LIKE ?)'
             params.extend([f'%{search_query}%', f'%{search_query}%'])
-
         if cuisine_filter:
             query += ' AND cuisine = ?'
             params.append(cuisine_filter)
-
         query += ' ORDER BY rating DESC'
 
         restaurants = conn.execute(query, params).fetchall()
         cuisines = conn.execute('SELECT DISTINCT cuisine FROM restaurants ORDER BY cuisine').fetchall()
     finally:
         conn.close()
-
     return render_template('index.html', restaurants=restaurants, cuisines=cuisines,
                            search_query=search_query, cuisine_filter=cuisine_filter)
-
 
 @app.route('/aboutus')
 def aboutus():
     return render_template('aboutus.html')
-
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
@@ -128,19 +158,17 @@ def register():
 
         conn = get_db()
         try:
-            existing_user = conn.execute('SELECT * FROM users WHERE username = ? OR email = ?', (username, email)).fetchone()
-            if existing_user:
+            existing = conn.execute('SELECT * FROM users WHERE username = ? OR email = ?', (username, email)).fetchone()
+            if existing:
                 flash('Username or email already exists!', 'error')
                 return redirect(url_for('register'))
-
-            hashed_password = generate_password_hash(password)
-            cursor = conn.execute('INSERT INTO users (username, email, password, coin_balance) VALUES (?, ?, ?, ?)',
-                                  (username, email, hashed_password, 100))
+            hashed = generate_password_hash(password)
+            cur = conn.execute('INSERT INTO users (username, email, password, coin_balance) VALUES (?, ?, ?, ?)',
+                               (username, email, hashed, 100))
             conn.commit()
-            user_id = cursor.lastrowid
-
+            uid = cur.lastrowid
             conn.execute('INSERT INTO coin_transactions (user_id, amount, transaction_type, description) VALUES (?, ?, ?, ?)',
-                         (user_id, 100, 'earned', 'Welcome bonus'))
+                         (uid, 100, 'earned', 'Welcome bonus'))
             conn.commit()
         finally:
             conn.close()
@@ -150,7 +178,6 @@ def register():
 
     return render_template('register.html')
 
-
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
@@ -159,23 +186,20 @@ def login():
 
         conn = get_db()
         try:
-            user = conn.execute('SELECT * FROM users WHERE username = ? OR email = ?', (identifier, identifier)).fetchone()
+            u = conn.execute('SELECT * FROM users WHERE username = ? OR email = ?', (identifier, identifier)).fetchone()
         finally:
             conn.close()
 
-        if user and check_password_hash(user['password'], password):
-            user_obj = User(user['id'], user['username'], user['email'], user['coin_balance'])
+        if u and check_password_hash(u['password'], password):
+            user_obj = User(u['id'], u['username'], u['email'], u['coin_balance'])
             login_user(user_obj)
-
-            # Admin redirect (change to your admin email if needed)
-            if user['email'] == "veenamalipatil279@gmail.com":
+            if u['email'] == "veenamalipatil279@gmail.com":
                 return redirect(url_for('admin_dashboard'))
             return redirect(url_for('index'))
         else:
             flash('Invalid credentials', 'error')
 
     return render_template('login.html')
-
 
 @app.route('/logout')
 @login_required
@@ -184,25 +208,41 @@ def logout():
     flash('You have been logged out.', 'success')
     return redirect(url_for('index'))
 
-# Restaurant & cart routes
+
+# --------------------------
+# Restaurant & cart
+# --------------------------
+
 @app.route('/restaurant/<int:restaurant_id>')
 def restaurant(restaurant_id):
     conn = get_db()
     try:
-        restaurant = conn.execute('SELECT * FROM restaurants WHERE id = ?', (restaurant_id,)).fetchone()
-        menu_items = conn.execute('SELECT * FROM menu_items WHERE restaurant_id = ? ORDER BY category', (restaurant_id,)).fetchall()
+        r = conn.execute(
+            'SELECT * FROM restaurants WHERE id = ?', 
+            (restaurant_id,)
+        ).fetchone()
+
+        if not r:
+            flash("Restaurant not found!", "error")
+            return redirect(url_for("index"))
+
+        menu_items = conn.execute(
+            'SELECT * FROM menu_items WHERE restaurant_id = ? ORDER BY category', 
+            (restaurant_id,)
+        ).fetchall()
     finally:
         conn.close()
-    if not restaurant:
-        flash('Restaurant not found!', 'error')
-        return redirect(url_for('index'))
+
+    # Build menu categories safely
     menu_by_category = {}
     for item in menu_items:
-        category = item['category']
-        menu_by_category.setdefault(category, []).append(item)
+        menu_by_category.setdefault(item['category'], []).append(item)
 
-    return render_template('restaurant.html', restaurant=restaurant, menu_by_category=menu_by_category)
-
+    return render_template(
+        'restaurant.html', 
+        restaurant=r, 
+        menu_by_category=menu_by_category
+    )
 
 @app.route('/add_to_cart', methods=['POST'])
 @login_required
@@ -212,6 +252,7 @@ def add_to_cart():
     Supports AJAX requests (returns JSON) and normal form submits (redirects to cart).
     """
     item_id = request.form.get('item_id')
+<<<<<<< HEAD
     try:
         quantity = int(request.form.get('quantity', 1))
     except (ValueError, TypeError):
@@ -226,8 +267,11 @@ def add_to_cart():
 
     # Initialize cart if needed
     if 'cart' not in session or not isinstance(session.get('cart'), dict):
+=======
+    quantity = int(request.form.get('quantity', 1))
+    if 'cart' not in session:
+>>>>>>> bb863e90e09fe5591d6cc3b321b9a2cdc779655b
         session['cart'] = {}
-
     cart = session['cart']
 
     # Convert item_id to string to avoid issues with sqlite/keys
@@ -254,6 +298,7 @@ def add_to_cart():
     # Fallback: flash + redirect to cart for non-AJAX form submits
     flash('Item added to cart!', 'success')
     return redirect(url_for('cart'))
+<<<<<<< HEAD
 @app.route('/cart')
 @login_required
 def cart():
@@ -278,6 +323,51 @@ def cart():
             })
 
     return render_template("cart.html", items=items, total_amount=total_amount)
+=======
+
+@app.route('/cart')
+@login_required
+def cart():
+    cart_items = []
+    total = 0
+    if 'cart' in session and session['cart']:
+        conn = get_db()
+        try:
+            for item_id, quantity in session['cart'].items():
+                item = conn.execute('''SELECT m.*, r.name as restaurant_name
+                                       FROM menu_items m JOIN restaurants r ON m.restaurant_id = r.id
+                                       WHERE m.id = ?''', (item_id,)).fetchone()
+                if item:
+                    subtotal = item['price'] * quantity
+                    cart_items.append({
+                        'id': item['id'], 'name': item['name'], 'restaurant': item['restaurant_name'],
+                        'price': item['price'], 'quantity': quantity, 'subtotal': subtotal
+                    })
+                    total += subtotal
+        finally:
+            conn.close()
+    return render_template('cart.html', cart_items=cart_items, total=total)
+
+@app.route('/update_cart', methods=['POST'])
+@login_required
+def update_cart():
+    item_id = request.form.get('item_id')
+    action = request.form.get('action')
+    if 'cart' in session:
+        cart = session['cart']
+        if action == 'increase':
+            cart[item_id] = cart.get(item_id, 0) + 1
+        elif action == 'decrease':
+            if cart.get(item_id, 0) > 1:
+                cart[item_id] -= 1
+            else:
+                cart.pop(item_id, None)
+        elif action == 'remove':
+            cart.pop(item_id, None)
+        session['cart'] = cart
+    return redirect(url_for('cart'))
+>>>>>>> bb863e90e09fe5591d6cc3b321b9a2cdc779655b
+
 
 # Checkout & order placement
 @app.route('/checkout', methods=['GET', 'POST'])
@@ -300,15 +390,11 @@ def checkout():
                     restaurant_id = item['restaurant_id']
                 subtotal = item['price'] * quantity
                 cart_items.append({
-                    'id': item['id'],
-                    'name': item['name'],
-                    'price': item['price'],
-                    'quantity': quantity,
-                    'subtotal': subtotal
+                    'id': item['id'], 'name': item['name'], 'price': item['price'],
+                    'quantity': quantity, 'subtotal': subtotal
                 })
                 total += subtotal
 
-        # Calculate GST
         cgst = total * 0.09
         sgst = total * 0.09
         gst_total = cgst + sgst
@@ -327,18 +413,16 @@ def checkout():
             max_allowed = min(user['coin_balance'], int(total_incl_gst * 0.10 * 100))
             final_amount = total_incl_gst - (coins_to_use / 100)
 
-            cursor = conn.execute('''
-                INSERT INTO orders (user_id, restaurant_id, total_amount, coins_used, final_amount, status, delivery_address, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            ''', (current_user.id, restaurant_id, total_incl_gst, coins_to_use, final_amount, 'Confirmed', address, datetime.utcnow().isoformat()))
-            order_id = cursor.lastrowid
+            cur = conn.execute('''INSERT INTO orders
+                                  (user_id, restaurant_id, total_amount, coins_used, final_amount, status, delivery_address, created_at)
+                                  VALUES (?, ?, ?, ?, ?, ?, ?, ?)''',
+                               (current_user.id, restaurant_id, total_incl_gst, coins_to_use, final_amount, 'Confirmed', address, datetime.utcnow().isoformat()))
+            order_id = cur.lastrowid
 
-            # Save order items
             for item in cart_items:
                 conn.execute('INSERT INTO order_items (order_id, menu_item_id, quantity, price) VALUES (?, ?, ?, ?)',
                              (order_id, item['id'], item['quantity'], item['price']))
 
-            # Update user coins and transactions
             new_balance = user['coin_balance'] - coins_to_use
             conn.execute('UPDATE users SET coin_balance = ? WHERE id = ?', (new_balance, current_user.id))
 
@@ -352,7 +436,6 @@ def checkout():
                          (current_user.id, cashback_coins, 'earned', f'Cashback from order #{order_id}'))
 
             conn.commit()
-
             session.pop('cart', None)
             flash(f'Order placed successfully! You earned {cashback_coins} cashback coins!', 'success')
             return redirect(url_for('orders'))
@@ -362,6 +445,8 @@ def checkout():
     return render_template('checkout.html', cart_items=cart_items, total=total, cgst=cgst, sgst=sgst,
                            total_incl_gst=total_incl_gst, coin_balance=user['coin_balance'])
 
+# --------------------------
+# Orders listing
 #orders listing
 # --------------------------
 @app.route('/orders')
@@ -375,6 +460,14 @@ def orders():
                               (current_user.id,)).fetchall()
     finally:
         conn.close()
+    return render_template('orders.html', orders=orders)
+
+# --------------------------
+# Games
+# ------------------------
+    orders = [dict(o) for o in orders]
+    for o in orders:
+        o["created_at"] = format_order_time(o["created_at"])
     return render_template('orders.html', orders=orders)
 # Games & game API
 @app.route('/games')
@@ -436,28 +529,66 @@ def complete_game():
         'message': f'You earned {coins_earned} coins!'
     })
 
+# --------------------------
 # Wallet & vendor register
 @app.route('/wallet')
 @login_required
 def wallet():
     conn = get_db()
     try:
-        transactions = conn.execute('''
-            SELECT * FROM coin_transactions
-            WHERE user_id = ?
-            ORDER BY created_at DESC LIMIT 50
-        ''', (current_user.id,)).fetchall()
+        transactions = conn.execute('SELECT * FROM coin_transactions WHERE user_id = ? ORDER BY created_at DESC LIMIT 50', (current_user.id,)).fetchall()
         user = conn.execute('SELECT coin_balance FROM users WHERE id = ?', (current_user.id,)).fetchone()
     finally:
         conn.close()
     return render_template('wallet.html', transactions=transactions, coin_balance=user['coin_balance'])
 
+@app.route('/vendor_register', methods=['GET', 'POST'])
+def vendor_register():
+    if request.method == 'POST':
+        data = (
+            request.form.get('restaurant_name'),
+            request.form.get('owner_name'),
+            request.form.get('email'),
+            request.form.get('phone'),
+            request.form.get('address'),
+            request.form.get('cuisine_type')
+        )
+        conn = get_db()
+        try:
+            c = conn.cursor()
+            c.execute('INSERT INTO vendors (restaurant_name, owner_name, email, phone, address, cuisine_type) VALUES (?, ?, ?, ?, ?, ?)', data)
+            conn.commit()
+            flash('Your restaurant has been submitted for admin approval!', 'success')
+        except sqlite3.IntegrityError:
+            flash('Email already registered!', 'danger')
+        finally:
+            conn.close()
+        return redirect(url_for('vendor_register'))
+    return render_template('vendor_register.html')
+
+# --------------------------
+# Invoice view + download
+# --------------------------
 # Invoice: view + download (clean)
 @app.route('/invoice/<int:order_id>')
 @login_required
 def invoice(order_id):
     conn = get_db()
     try:
+        order = conn.execute('''SELECT o.*, r.name AS restaurant_name, u.username, u.email
+                                FROM orders o JOIN restaurants r ON o.restaurant_id = r.id
+                                JOIN users u ON o.user_id = u.id
+                                WHERE o.id = ? AND o.user_id = ?''',
+                             (order_id, current_user.id)).fetchone()
+        if not order:
+            flash('Order not found!', 'error')
+            return redirect(url_for('orders'))
+
+        items = conn.execute('''SELECT m.name, oi.quantity, oi.price, (oi.quantity * oi.price) AS subtotal
+                                FROM order_items oi JOIN menu_items m ON oi.menu_item_id = m.id
+                                WHERE oi.order_id = ?''', (order_id,)).fetchall()
+
+        total = sum(it['subtotal'] for it in items)
         order = conn.execute('''
             SELECT o.*, r.name AS restaurant_name, u.username, u.email
             FROM orders o
@@ -480,6 +611,12 @@ def invoice(order_id):
         sgst = total * 0.09
         gst_total = cgst + sgst
         total_incl_gst = total + gst_total
+        final_amount = total_incl_gst - order['coins_used']
+
+        return render_template('invoice.html', order=order, items=items, total=total,
+                               cgst=cgst, sgst=sgst, gst_total=gst_total,
+                               total_incl_gst=total_incl_gst, final_amount=final_amount, mode="html")
+        final_amount = total_incl_gst - (order['coins_used'] /100)
         final_amount = total_incl_gst - (order['coins_used'] /100) if order['coins_used'] is not None else total_incl_gst
         return render_template('invoice.html',
                                order=order,
@@ -502,6 +639,19 @@ def invoice_download(order_id):
     """
     conn = get_db()
     try:
+        order = conn.execute('''SELECT o.*, r.name AS restaurant_name, u.username, u.email
+                                FROM orders o JOIN restaurants r ON o.restaurant_id = r.id
+                                JOIN users u ON o.user_id = u.id
+                                WHERE o.id = ? AND o.user_id = ?''', (order_id, current_user.id)).fetchone()
+        if not order:
+            flash('Order not found!', 'error')
+            return redirect(url_for('orders'))
+
+        items = conn.execute('''SELECT m.name, oi.quantity, oi.price, (oi.quantity * oi.price) AS subtotal
+                                FROM order_items oi JOIN menu_items m ON oi.menu_item_id = m.id
+                                WHERE oi.order_id = ?''', (order_id,)).fetchall()
+
+        total = sum(it['subtotal'] for it in items)
         order = conn.execute('''
             SELECT o.*, r.name AS restaurant_name, u.username, u.email
             FROM orders o
@@ -527,6 +677,27 @@ def invoice_download(order_id):
         sgst = total * 0.09
         gst_total = cgst + sgst
         total_incl_gst = total + gst_total
+        final_amount = total_incl_gst - order['coins_used']
+
+        html = render_template('invoice.html', order=order, items=items, total=total,
+                               cgst=cgst, sgst=sgst, gst_total=gst_total,
+                               total_incl_gst=total_incl_gst, final_amount=final_amount, mode="pdf")
+
+        final_amount = total_incl_gst - (order['coins_used'] / 100)
+        html = render_template('invoice.html',
+                               order=order,
+                               items=items,
+                               total=total,
+                               cgst=cgst,
+                               sgst=sgst,
+                               gst_total=gst_total,
+                               total_incl_gst=total_incl_gst,
+                               final_amount=final_amount,
+                               mode="pdf")
+        # PDF generation 
+        config = get_pdfkit_config()
+        pdf = pdfkit.from_string(html, False, configuration=config)
+        response = make_response(pdf)
         coins_used = order['coins_used'] or 0
         final_amount = total_incl_gst - (coins_used / 100)
 
@@ -638,10 +809,10 @@ def invoice_download(order_id):
         response.headers['Content-Type'] = 'application/pdf'
         response.headers['Content-Disposition'] = f'attachment; filename=invoice_{order_id}.pdf'
         return response
+
     finally:
         conn.close()
 
-# Compatibility redirect for legacy route
 @app.route('/invoice-pdf/<int:order_id>')
 @login_required
 def invoice_pdf_compat(order_id):

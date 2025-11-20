@@ -3,6 +3,20 @@
 {% block title %}{{ restaurant.name }} - FoodHub{% endblock %}
 
 {% block content %}
+<script>
+function updatePrice(input) {
+    let quantity = parseInt(input.value);
+    let priceSpan = input.parentElement.parentElement.querySelector(".price");
+    let basePrice = parseFloat(priceSpan.getAttribute("data-base-price"));
+
+    if (quantity < 1) quantity = 1;
+
+    let totalPrice = basePrice * quantity;
+
+    priceSpan.textContent = "₹" + totalPrice.toFixed(2);
+}
+</script>
+
 <div style="background: white; padding: 2rem; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); margin-bottom: 2rem;">
     <img src="{{ restaurant.image_url }}" alt="{{ restaurant.name }}" style="width: 100%; height: 300px; object-fit: cover; border-radius: 10px; margin-bottom: 1.5rem;">
     
@@ -27,6 +41,7 @@
             <div class="menu-items">
                 
                 {% for item in items %}
+<<<<<<< HEAD
                 <div class="menu-item">
                     <div class="menu-item-info">
                         <h4>
@@ -38,6 +53,40 @@
                             {{ item.name }}
                         </h4>
                         <p>{{ item.description }}</p>
+=======
+                    <div class="menu-item">
+                        <div class="menu-item-info">
+                            <h4>
+                                {% if item.is_veg %}
+                                    <span class="veg-badge"></span>
+                                {% else %}
+                                    <span class="non-veg-badge"></span>
+                                {% endif %}
+                                {{ item.name }}
+                            </h4>
+                            <p>{{ item.description }}</p>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 1rem;">
+    <span class="price" data-base-price="{{ item.price }}">
+        ₹{{ "%.2f"|format(item.price) }}
+    </span>
+
+    {% if current_user.is_authenticated %}
+        <form method="POST" action="{{ url_for('add_to_cart') }}" class="add-to-cart-form">
+            <input type="hidden" name="item_id" value="{{ item.id }}">
+
+            <!-- Quantity input -->
+            <input type="number" name="quantity" value="1" min="1" max="10"
+                   class="quantity-input" oninput="updatePrice(this)">
+
+            <!-- Correct button (NO <a> tag) -->
+            <button type="submit" class="btn btn-sm">Add to Cart</button>
+        </form>
+    {% else %}
+        <a href="{{ url_for('login') }}" class="btn btn-sm">Login to Order</a>
+    {% endif %}
+</div>
+>>>>>>> bb863e90e09fe5591d6cc3b321b9a2cdc779655b
                     </div>
 
                     <div style="display: flex; align-items: center; gap: 1rem;">
