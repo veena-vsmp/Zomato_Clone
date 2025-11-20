@@ -39,21 +39,15 @@
       }
     </style>
 
-    <script>
-    function goBack() {
-        {% if current_user.is_authenticated %}
-            // Admin always goes to dashboard
-            window.location.href = "{{ url_for('admin_dashboard') }}";
-        {% else %}
-            // Normal user fallback
-            if (window.history.length > 1) {
-                window.history.back();
-            } else {
-                window.location.href = "{{ url_for('index') }}";
-            }
-        {% endif %}
+     <script>
+function goBack() {
+    if (document.referrer && document.referrer !== window.location.href) {
+        window.history.back();
+    } else {
+        window.location.href = "{{ url_for('index') }}"; // fallback to home page
     }
-    </script>
+}
+</script>
 </head>
 <body>
     <button onclick="goBack()" class="back-btn">← Back</button>

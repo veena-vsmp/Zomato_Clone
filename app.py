@@ -207,72 +207,77 @@ def restaurant(restaurant_id):
 @app.route('/add_to_cart', methods=['POST'])
 @login_required
 def add_to_cart():
+    """
+    Adds the posted item_id and quantity to the session cart.
+    Supports AJAX requests (returns JSON) and normal form submits (redirects to cart).
+    """
     item_id = request.form.get('item_id')
-    quantity = int(request.form.get('quantity', 1))
+    try:
+        quantity = int(request.form.get('quantity', 1))
+    except (ValueError, TypeError):
+        quantity = 1
 
-    if 'cart' not in session:
+    if not item_id:
+        # Bad request
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.accept_mimetypes.accept_json:
+            return jsonify({'status': 'error', 'message': 'Missing item_id'}), 400
+        flash('Invalid item', 'error')
+        return redirect(url_for('index'))
+
+    # Initialize cart if needed
+    if 'cart' not in session or not isinstance(session.get('cart'), dict):
         session['cart'] = {}
 
     cart = session['cart']
-    cart[item_id] = cart.get(item_id, 0) + quantity
+
+    # Convert item_id to string to avoid issues with sqlite/keys
+    item_key = str(item_id)
+    cart[item_key] = cart.get(item_key, 0) + max(1, quantity)
+
+    # Persist session and mark modified
     session['cart'] = cart
+    session.modified = True
+
+    # Prepare cart summary to return to frontend
+    cart_total_quantity = sum(int(v) for v in cart.values()) if cart else 0
+
+    # If this was an AJAX request, return JSON (AJAX frontend expects JSON)
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.accept_mimetypes.accept_json:
+        return jsonify({
+            'status': 'success',
+            'message': 'Item added to cart',
+            'cart_total_quantity': cart_total_quantity,
+            'item_id': item_key,
+            'quantity': cart[item_key]
+        }), 200
+
+    # Fallback: flash + redirect to cart for non-AJAX form submits
     flash('Item added to cart!', 'success')
     return redirect(url_for('cart'))
-
-
 @app.route('/cart')
 @login_required
 def cart():
-    cart_items = []
-    total = 0
+    cart = session.get('cart', {})
 
-    if 'cart' in session and session['cart']:
-        conn = get_db()
-        try:
-            for item_id, quantity in session['cart'].items():
-                item = conn.execute('''
-                    SELECT m.*, r.name as restaurant_name
-                    FROM menu_items m
-                    JOIN restaurants r ON m.restaurant_id = r.id
-                    WHERE m.id = ?
-                ''', (item_id,)).fetchone()
-                if item:
-                    subtotal = item['price'] * quantity
-                    cart_items.append({
-                        'id': item['id'],
-                        'name': item['name'],
-                        'restaurant': item['restaurant_name'],
-                        'price': item['price'],
-                        'quantity': quantity,
-                        'subtotal': subtotal
-                    })
-                    total += subtotal
-        finally:
-            conn.close()
+    # Fetch item details from DB
+    items = []
+    total_amount = 0
 
-    return render_template('cart.html', cart_items=cart_items, total=total)
+    for item_id, qty in cart.items():
+        menu_item = Menu_item.query.get(int(item_id))
+        if menu_item:
+            item_total = menu_item.price * qty
+            total_amount += item_total
 
+            items.append({
+                "id": item_id,
+                "name": menu_item.name,
+                "quantity": qty,
+                "price": menu_item.price,
+                "total": item_total
+            })
 
-@app.route('/update_cart', methods=['POST'])
-@login_required
-def update_cart():
-    item_id = request.form.get('item_id')
-    action = request.form.get('action')
-
-    if 'cart' in session:
-        cart = session['cart']
-        if action == 'increase':
-            cart[item_id] = cart.get(item_id, 0) + 1
-        elif action == 'decrease':
-            if cart.get(item_id, 0) > 1:
-                cart[item_id] -= 1
-            else:
-                cart.pop(item_id, None)
-        elif action == 'remove':
-            cart.pop(item_id, None)
-        session['cart'] = cart
-
-    return redirect(url_for('cart'))
+    return render_template("cart.html", items=items, total_amount=total_amount)
 
 # Checkout & order placement
 @app.route('/checkout', methods=['GET', 'POST'])
