@@ -7,7 +7,6 @@ from flask_login import (
     login_required, current_user
 )
 from werkzeug.security import generate_password_hash, check_password_hash
-
 import sqlite3
 import os
 import shutil
@@ -18,45 +17,53 @@ from datetime import datetime
 
 # OpenAI official client
 from openai import OpenAI
+from datetime import datetime, timedelta, timezone
 
-# --------------------------
 # App config
-# --------------------------
 app = Flask(__name__)
 app.secret_key = os.environ.get('SESSION_SECRET', 'dev-secret-key-change-in-production')
 
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
-
-# Initialize OpenAI client (prefer env var)
-OPENAI_KEY = os.environ.get('OPENAI_API_KEY')
-if OPENAI_KEY:
-    client = OpenAI(api_key=OPENAI_KEY)
-else:
-    # instantiate without key, client will error if used — we'll handle that gracefully
-    client = OpenAI()
-
-# --------------------------
 # Helpers
 # --------------------------
+# Helper: wkhtmltopdf auto-detect
+# --------------------------
 def get_pdfkit_config():
+    """
+    Automatically detect wkhtmltopdf path on Windows, Linux, or Mac.
+    Falls back to common installation paths and raises FileNotFoundError if not found.
+    """
+    # If wkhtmltopdf is in PATH
     wkhtml_path = shutil.which("wkhtmltopdf")
     if wkhtml_path:
         return pdfkit.configuration(wkhtmltopdf=wkhtml_path)
+
+    # Windows common install paths
     windows_path = r"C:\Program Files\wkhtmltopdf\bin\wkhtmltopdf.exe"
     if os.path.exists(windows_path):
         return pdfkit.configuration(wkhtmltopdf=windows_path)
+
     windows_path2 = r"C:\Program Files (x86)\wkhtmltopdf\bin\wkhtmltopdf.exe"
     if os.path.exists(windows_path2):
         return pdfkit.configuration(wkhtmltopdf=windows_path2)
+
+    # Common Linux/macOS paths
     linux_path = "/usr/bin/wkhtmltopdf"
     if os.path.exists(linux_path):
         return pdfkit.configuration(wkhtmltopdf=linux_path)
+
     mac_path = "/usr/local/bin/wkhtmltopdf"
     if os.path.exists(mac_path):
         return pdfkit.configuration(wkhtmltopdf=mac_path)
-    raise FileNotFoundError("wkhtmltopdf not found! Install it or add to PATH.")
+
+    # Nothing found
+    raise FileNotFoundError("wkhtmltopdf not found! Install from: https://wkhtmltopdf.org/downloads/")
+
+
+
+# DB helper & user model
 
 def get_db():
     conn = sqlite3.connect('foodapp.db')
@@ -83,10 +90,7 @@ def load_user(user_id):
     if u:
         return User(u['id'], u['username'], u['email'], u['coin_balance'])
     return None
-
-# --------------------------
 # Context processors
-# --------------------------
 @app.context_processor
 def inject_cart():
     cart = session.get('cart', {})
@@ -103,7 +107,6 @@ def inject_user():
             conn.close()
         return {'user_coin_balance': u['coin_balance'] if u else 0}
     return {'user_coin_balance': 0}
-
 # --------------------------
 # Public & Auth routes
 # --------------------------
@@ -198,7 +201,6 @@ def logout():
     flash('You have been logged out.', 'success')
     return redirect(url_for('index'))
 
-# --------------------------
 # Admin
 # --------------------------
 @app.route('/admin_dashboard')
@@ -241,6 +243,7 @@ def admin_dashboard():
 # --------------------------
 # Restaurant & cart
 # --------------------------
+
 @app.route('/restaurant/<int:restaurant_id>')
 def restaurant(restaurant_id):
     conn = get_db()
@@ -251,12 +254,12 @@ def restaurant(restaurant_id):
         conn.close()
 
     if not r:
-        flash('Restaurant not found!', 'error')
-        return redirect(url_for('index'))
-
-    menu_by_category = {}
-    for item in menu_items:
-        menu_by_category.setdefault(item['category'], []).append(item)
+        if not restaurant:
+            flash('Restaurant not found!', 'error')
+            return redirect(url_for('index'))
+        menu_by_category = {}
+        for item in menu_items:
+            menu_by_category.setdefault(item['category'], []).append(item)
 
     return render_template('restaurant.html', restaurant=r, menu_by_category=menu_by_category)
 
@@ -315,9 +318,8 @@ def update_cart():
         session['cart'] = cart
     return redirect(url_for('cart'))
 
-# --------------------------
-# Checkout & place order
-# --------------------------
+
+# Checkout & order placement
 @app.route('/checkout', methods=['GET', 'POST'])
 @login_required
 def checkout():
@@ -358,10 +360,8 @@ def checkout():
                 flash('Insufficient coin balance!', 'error')
                 return redirect(url_for('checkout'))
 
-            if coins_to_use > total_incl_gst:
-                coins_to_use = int(total_incl_gst)
-
-            final_amount = total_incl_gst - coins_to_use
+            max_allowed = min(user['coin_balance'], int(total_incl_gst * 0.10 * 100))
+            final_amount = total_incl_gst - (coins_to_use / 100)
 
             cur = conn.execute('''INSERT INTO orders
                                   (user_id, restaurant_id, total_amount, coins_used, final_amount, status, delivery_address, created_at)
@@ -397,7 +397,7 @@ def checkout():
 
 # --------------------------
 # Orders listing
-# --------------------------
+#orders listing
 @app.route('/orders')
 @login_required
 def orders():
@@ -413,7 +413,13 @@ def orders():
 
 # --------------------------
 # Games
-# --------------------------
+# ------------------------
+    orders = [dict(o) for o in orders]
+    for o in orders:
+        o["created_at"] = format_order_time(o["created_at"])
+    return render_template('orders.html', orders=orders)
+
+# Games & game API
 @app.route('/games')
 @login_required
 def games():
@@ -465,9 +471,7 @@ def complete_game():
         new_balance = user['coin_balance']
     finally:
         conn.close()
-
     session['user_coin_balance'] = new_balance
-
     return jsonify({
         'success': True,
         'coins_earned': coins_earned,
@@ -477,7 +481,6 @@ def complete_game():
 
 # --------------------------
 # Wallet & vendor register
-# --------------------------
 @app.route('/wallet')
 @login_required
 def wallet():
@@ -516,6 +519,7 @@ def vendor_register():
 # --------------------------
 # Invoice view + download
 # --------------------------
+# Invoice: view + download (clean)
 @app.route('/invoice/<int:order_id>')
 @login_required
 def invoice(order_id):
@@ -535,6 +539,24 @@ def invoice(order_id):
                                 WHERE oi.order_id = ?''', (order_id,)).fetchall()
 
         total = sum(it['subtotal'] for it in items)
+        order = conn.execute('''
+            SELECT o.*, r.name AS restaurant_name, u.username, u.email
+            FROM orders o
+            JOIN restaurants r ON o.restaurant_id = r.id
+            JOIN users u ON o.user_id = u.id
+            WHERE o.id = ? AND o.user_id = ?
+        ''', (order_id, current_user.id)).fetchone()
+        if not order:
+            flash('Order not found!', 'error')
+            return redirect(url_for('orders'))
+        items = conn.execute('''
+            SELECT m.name, oi.quantity, oi.price, (oi.quantity * oi.price) AS subtotal
+            FROM order_items oi
+            JOIN menu_items m ON oi.menu_item_id = m.id
+            WHERE oi.order_id = ?
+        ''', (order_id,)).fetchall()
+        # Calculate totals
+        total = sum(item['subtotal'] for item in items)
         cgst = total * 0.09
         sgst = total * 0.09
         gst_total = cgst + sgst
@@ -544,6 +566,17 @@ def invoice(order_id):
         return render_template('invoice.html', order=order, items=items, total=total,
                                cgst=cgst, sgst=sgst, gst_total=gst_total,
                                total_incl_gst=total_incl_gst, final_amount=final_amount, mode="html")
+        final_amount = total_incl_gst - (order['coins_used'] /100)
+        return render_template('invoice.html',
+                               order=order,
+                               items=items,
+                               total=total,
+                               cgst=cgst,
+                               sgst=sgst,
+                               gst_total=gst_total,
+                               total_incl_gst=total_incl_gst,
+                               final_amount=final_amount,
+                               mode="html")
     finally:
         conn.close()
 
@@ -565,6 +598,23 @@ def invoice_download(order_id):
                                 WHERE oi.order_id = ?''', (order_id,)).fetchall()
 
         total = sum(it['subtotal'] for it in items)
+        order = conn.execute('''
+            SELECT o.*, r.name AS restaurant_name, u.username, u.email
+            FROM orders o
+            JOIN restaurants r ON o.restaurant_id = r.id
+            JOIN users u ON o.user_id = u.id
+            WHERE o.id = ? AND o.user_id = ?
+        ''', (order_id, current_user.id)).fetchone()
+        if not order:
+            flash('Order not found!', 'error')
+            return redirect(url_for('orders'))
+        items = conn.execute('''
+            SELECT m.name, oi.quantity, oi.price, (oi.quantity * oi.price) AS subtotal
+            FROM order_items oi
+            JOIN menu_items m ON oi.menu_item_id = m.id
+            WHERE oi.order_id = ?
+        ''', (order_id,)).fetchall()
+        total = sum(item['subtotal'] for item in items)
         cgst = total * 0.09
         sgst = total * 0.09
         gst_total = cgst + sgst
@@ -575,9 +625,20 @@ def invoice_download(order_id):
                                cgst=cgst, sgst=sgst, gst_total=gst_total,
                                total_incl_gst=total_incl_gst, final_amount=final_amount, mode="pdf")
 
+        final_amount = total_incl_gst - (order['coins_used'] / 100)
+        html = render_template('invoice.html',
+                               order=order,
+                               items=items,
+                               total=total,
+                               cgst=cgst,
+                               sgst=sgst,
+                               gst_total=gst_total,
+                               total_incl_gst=total_incl_gst,
+                               final_amount=final_amount,
+                               mode="pdf")
+        # PDF generation 
         config = get_pdfkit_config()
         pdf = pdfkit.from_string(html, False, configuration=config)
-
         response = make_response(pdf)
         response.headers['Content-Type'] = 'application/pdf'
         response.headers['Content-Disposition'] = f'attachment; filename=invoice_{order_id}.pdf'
@@ -590,9 +651,138 @@ def invoice_download(order_id):
 def invoice_pdf_compat(order_id):
     return redirect(url_for('invoice_download', order_id=order_id))
 
+def is_admin():
+    return current_user.is_authenticated and current_user.username == "veenamalipatil"
 
-# --------------------------
+# Admin dashboard 
+@app.route('/admin_dashboard')
+@login_required
+def admin_dashboard():
+    if current_user.username != "veenamalipatil":
+        flash("Unauthorized access!", "error")
+        return redirect(url_for("index"))
+
+    conn = get_db()
+    conn.row_factory = sqlite3.Row  # Allows dict-style access
+
+    # Fetch all data from correct tables
+    users = conn.execute("SELECT * FROM users").fetchall()
+    restaurants = conn.execute("SELECT * FROM restaurants").fetchall()
+    menus = conn.execute("SELECT * FROM menu_items").fetchall()
+
+    # Orders must join users + restaurants for displaying names
+    orders = conn.execute('''
+        SELECT 
+            o.id,
+            u.username AS username,
+            r.name AS restaurant_name,
+            o.final_amount AS total,
+            o.created_at AS order_date
+        FROM orders o
+        JOIN users u ON o.user_id = u.id
+        JOIN restaurants r ON o.restaurant_id = r.id
+    ''').fetchall()
+
+    # Dashboard summary counts
+    users_count = len(users)
+    restaurant_count = len(restaurants)
+    total_orders = len(orders)
+
+    # Calculate total revenue
+    total_revenue = conn.execute("SELECT SUM(final_amount) FROM orders").fetchone()[0]
+    total_revenue = total_revenue if total_revenue else 0
+
+    return render_template(
+        "admin_dashboard.html",
+        users=users,
+        restaurants=restaurants,
+        menu=menus,
+        orders=orders,
+        users_count=users_count,
+        restaurant_count=restaurant_count,
+        total_orders=total_orders,
+        total_revenue=total_revenue
+    )
+
+
+@app.route('/edit_vendor/<int:id>', methods=['GET', 'POST'])
+@login_required
+def edit_vendor(id):
+    if not is_admin():
+        flash("Unauthorized access!", "error")
+        return redirect(url_for('index'))
+
+    conn = get_db()
+    vendor = conn.execute("SELECT * FROM restaurants WHERE id = ?", (id,)).fetchone()
+
+    if request.method == "POST":
+        name = request.form['name']
+        location = request.form['location']
+        email = request.form['email']
+
+        conn.execute("""
+            UPDATE restaurants 
+            SET name = ?, location = ?, email = ?
+            WHERE id = ?
+        """, (name, location, email, id))
+
+        conn.commit()
+        flash("Vendor updated successfully!", "success")
+        return redirect(url_for('admin_dashboard'))
+
+    return render_template("edit_vendor.html", vendor=vendor)
+
+@app.route('/delete_vendor/<int:id>', methods=['POST'])
+@login_required
+def delete_vendor(id):
+    if not is_admin():
+        flash("Unauthorized access!", "error")
+        return redirect(url_for('index'))
+
+    conn = get_db()
+    conn.execute("DELETE FROM restaurants WHERE id = ?", (id,))
+    conn.commit()
+
+    flash("Vendor deleted successfully!", "success")
+    return redirect(url_for('admin_dashboard'))
+
+@app.route('/delete_user/<int:id>')
+@login_required
+def delete_user(id):
+    if current_user.username != "veenamalipatil":
+        flash("Unauthorized", "error")
+        return redirect(url_for("index"))
+
+    conn = get_db()
+    conn.execute("DELETE FROM users WHERE id = ?", (id,))
+    conn.commit()
+    flash("User deleted!", "success")
+    return redirect(url_for("admin_dashboard"))
+
+@app.route('/add_menu', methods=['GET', 'POST'])
+@login_required
+def add_menu():
+    conn = get_db()
+
+    if request.method == 'POST':
+        name = request.form['name']
+        price = request.form['price']
+        restaurant_id = request.form['restaurant_id']
+
+        conn.execute("""
+            INSERT INTO menu_items (name, price, restaurant_id)
+            VALUES (?, ?, ?)
+        """, (name, price, restaurant_id))
+
+        conn.commit()
+        flash("Menu item added successfully!", "success")
+        return redirect(url_for('admin_dashboard'))
+
+    restaurants = conn.execute("SELECT id, name FROM restaurants").fetchall()
+    
+    return render_template("add_menu.html", restaurants=restaurants)
+
+
 # Run
-# --------------------------
 if __name__ == '__main__':
     app.run(host='127.0.0.1', port=5002, debug=True)

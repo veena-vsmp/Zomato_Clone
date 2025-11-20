@@ -94,39 +94,31 @@
 </head>
 
 <body>
-
 <div class="invoice-container">
-
     <!-- Header -->
     <div class="header">
         ZOMATO ORDER INVOICE
     </div>
-
     <!-- SHOW DOWNLOAD BUTTON ONLY IN WEB VIEW -->
     {% if mode != "pdf" %}
         <a href="{{ url_for('invoice_download', order_id=order.id) }}" class="download-btn">
             ⬇ Download PDF
         </a>
     {% endif %}
-
     <!-- Invoice Info -->
     <div class="section-title">Invoice No: INV-{{ order.id }} &nbsp; | &nbsp; Date: {{ order.created_at }}</div>
-
     <!-- Restaurant Details -->
     <div class="section-title">Restaurant Details</div>
     <div class="info-line"><strong>{{ order.restaurant_name }}</strong></div>
     <div class="info-line">GSTIN: 27ABCDE1234F1Z5</div>
     <div class="info-line">FSSAI: 112233445566</div>
-
     <!-- Customer Details -->
     <div class="section-title">Customer Details</div>
     <div class="info-line">Name: {{ order.username }}</div>
     <div class="info-line">Email: {{ order.email }}</div>
     <div class="info-line">Delivery Address: {{ order.delivery_address }}</div>
-
     <!-- Order Summary -->
     <div class="section-title">Order Summary</div>
-
     <table>
         <thead>
             <tr>
@@ -136,7 +128,6 @@
                 <th>Subtotal (₹)</th>
             </tr>
         </thead>
-
         <tbody>
             {% for item in items %}
             <tr>
@@ -148,7 +139,6 @@
             {% endfor %}
         </tbody>
     </table>
-
     <!-- Totals Section -->
     <div class="totals-box">
         <div class="total-row"><span>Subtotal:</span><span>₹{{ "%.2f"|format(total) }}</span></div>

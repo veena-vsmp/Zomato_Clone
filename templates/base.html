@@ -7,6 +7,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 
     <style>
+      
       .back-btn {
         position: fixed;
         top: 80px;
@@ -28,7 +29,12 @@
         background-color: #c52f3d;
         transform: scale(1.05);
       }
+      .back-btn:hover {
+        background-color: #c52f3d;
+        transform: scale(1.05);
+      }
 
+      
       @media (max-width: 600px) {
         .back-btn {
           top: 70px;
@@ -53,8 +59,10 @@ function goBack() {
     <button onclick="goBack()" class="back-btn">← Back</button>
 
     <!-- Navbar -->
+    <!-- Navbar -->
     <nav class="navbar">
         <div class="navbar-content">
+            <h1><a href="{{ url_for('index') }}">Zomato</a></h1>
             <h1><a href="{{ url_for('index') }}">Zomato</a></h1>
             <div class="nav-links">
                 {% if current_user.is_authenticated %}
@@ -100,7 +108,31 @@ function goBack() {
             <li><a href="#">Zomato Blog</a></li>
           </ul>
         </div>
+    <!-- Footer -->
+    {% block footer %}
+    <footer class="zomato-footer">
+      <div class="footer-container">
+        <div class="footer-section">
+          <h4>Company</h4>
+          <ul>
+            <li><a href="{{ url_for('aboutus') }}">About</a></li>
+            <li><a href="#">Careers</a></li>
+            <li><a href="#">Team</a></li>
+            <li><a href="#">Zomato Blog</a></li>
+          </ul>
+        </div>
 
+        <div class="footer-section">
+          <h4>For Restaurants</h4>
+          <ul>
+            <li><a href="#">Partner With Us</a></li>
+            <li><a href="#">Apps for You</a></li>
+          </ul>
+          <h4>For Enterprises</h4>
+          <ul>
+            <li><a href="#">Zomato For Enterprises</a></li>
+          </ul>
+        </div>
         <div class="footer-section">
           <h4>For Restaurants</h4>
           <ul>
@@ -122,6 +154,15 @@ function goBack() {
             <li><a href="#">Sitemap</a></li>
           </ul>
         </div>
+        <div class="footer-section">
+          <h4>For You</h4>
+          <ul>
+            <li><a href="#">Privacy</a></li>
+            <li><a href="#">Terms</a></li>
+            <li><a href="#">Security</a></li>
+            <li><a href="#">Sitemap</a></li>
+          </ul>
+        </div>
 
         <div class="footer-section">
           <h4>Social Links</h4>
@@ -133,7 +174,22 @@ function goBack() {
           </div>
         </div>
       </div>
+        <div class="footer-section">
+          <h4>Social Links</h4>
+          <div class="social-icons">
+            <a href="#"><img src="/static/home_images/fb.png" class="icons" alt="Facebook" /></a>
+            <a href="#"><img src="/static/home_images/twitter.png" class="icons" alt="Twitter" /></a>
+            <a href="#"><img src="/static/home_images/ig.jpg" class="icons" alt="Instagram" /></a>
+            <a href="#"><img src="/static/home_images/lidn.png" class="icons" alt="LinkedIn" /></a>
+          </div>
+        </div>
+      </div>
 
+      <div class="footer-bottom" style="text-align: center;">
+        <p>© 2025 Zomato™ Ltd. All rights reserved.</p>
+      </div>
+    </footer>
+    {% endblock %}
       <div class="footer-bottom" style="text-align: center;">
         <p>© 2025 Zomato™ Ltd. All rights reserved.</p>
       </div>
