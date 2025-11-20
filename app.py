@@ -7,11 +7,25 @@ from flask_login import (
     login_required, current_user
 )
 from werkzeug.security import generate_password_hash, check_password_hash
+from werkzeug.utils import secure_filename
 import sqlite3
 import os
-import shutil
-import pdfkit
 from datetime import datetime, timedelta, timezone
+from io import BytesIO
+
+# ReportLab imports for PDF generation (professional layout)
+from reportlab.lib.pagesizes import A4
+from reportlab.lib import colors
+from reportlab.lib.units import mm
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+
+UPLOAD_FOLDER = "static/uploads"
+
+# Create folder if it does not exist
+if not os.path.exists(UPLOAD_FOLDER):
+    os.makedirs(UPLOAD_FOLDER)
+
 
 # App config
 app = Flask(__name__)
@@ -21,24 +35,6 @@ login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
 
-# Helper: wkhtmltopdf auto-detect
-def get_pdfkit_config():
-    wkhtml_path = shutil.which("wkhtmltopdf")
-    if wkhtml_path:
-        return pdfkit.configuration(wkhtmltopdf=wkhtml_path)
-    windows_path = r"C:\Program Files\wkhtmltopdf\bin\wkhtmltopdf.exe"
-    if os.path.exists(windows_path):
-        return pdfkit.configuration(wkhtmltopdf=windows_path)
-    windows_path2 = r"C:\Program Files (x86)\wkhtmltopdf\bin\wkhtmltopdf.exe"
-    if os.path.exists(windows_path2):
-        return pdfkit.configuration(wkhtmltopdf=windows_path2)
-    linux_path = "/usr/bin/wkhtmltopdf"
-    if os.path.exists(linux_path):
-        return pdfkit.configuration(wkhtmltopdf=linux_path)
-    mac_path = "/usr/local/bin/wkhtmltopdf"
-    if os.path.exists(mac_path):
-        return pdfkit.configuration(wkhtmltopdf=mac_path)
-    raise FileNotFoundError("wkhtmltopdf not found! Install it: https://wkhtmltopdf.org/downloads/")
 
 # DB helper & user model
 def get_db():
@@ -362,25 +358,19 @@ def checkout():
                            total_incl_gst=total_incl_gst, coin_balance=user['coin_balance'])
 
 #orders listing
+# --------------------------
 @app.route('/orders')
 @login_required
 def orders():
     conn = get_db()
     try:
-        orders = conn.execute('''
-            SELECT o.*, r.name as restaurant_name
-            FROM orders o
-            JOIN restaurants r ON o.restaurant_id = r.id
-            WHERE o.user_id = ?
-            ORDER BY o.created_at DESC
-        ''', (current_user.id,)).fetchall()
+        orders = conn.execute('''SELECT o.*, r.name as restaurant_name
+                                 FROM orders o JOIN restaurants r ON o.restaurant_id = r.id
+                                 WHERE o.user_id = ? ORDER BY o.created_at DESC''',
+                              (current_user.id,)).fetchall()
     finally:
         conn.close()
-    orders = [dict(o) for o in orders]
-    for o in orders:
-        o["created_at"] = format_order_time(o["created_at"])
     return render_template('orders.html', orders=orders)
-
 # Games & game API
 @app.route('/games')
 @login_required
@@ -485,7 +475,7 @@ def invoice(order_id):
         sgst = total * 0.09
         gst_total = cgst + sgst
         total_incl_gst = total + gst_total
-        final_amount = total_incl_gst - (order['coins_used'] /100)
+        final_amount = total_incl_gst - (order['coins_used'] /100) if order['coins_used'] is not None else total_incl_gst
         return render_template('invoice.html',
                                order=order,
                                items=items,
@@ -502,6 +492,9 @@ def invoice(order_id):
 @app.route('/invoice/<int:order_id>/download')
 @login_required
 def invoice_download(order_id):
+    """
+    Generate a professional-style invoice PDF using ReportLab (pure Python).
+    """
     conn = get_db()
     try:
         order = conn.execute('''
@@ -511,35 +504,132 @@ def invoice_download(order_id):
             JOIN users u ON o.user_id = u.id
             WHERE o.id = ? AND o.user_id = ?
         ''', (order_id, current_user.id)).fetchone()
+
         if not order:
             flash('Order not found!', 'error')
             return redirect(url_for('orders'))
+
         items = conn.execute('''
             SELECT m.name, oi.quantity, oi.price, (oi.quantity * oi.price) AS subtotal
             FROM order_items oi
             JOIN menu_items m ON oi.menu_item_id = m.id
             WHERE oi.order_id = ?
         ''', (order_id,)).fetchall()
+
+        # Totals
         total = sum(item['subtotal'] for item in items)
         cgst = total * 0.09
         sgst = total * 0.09
         gst_total = cgst + sgst
         total_incl_gst = total + gst_total
-        final_amount = total_incl_gst - (order['coins_used'] / 100)
-        html = render_template('invoice.html',
-                               order=order,
-                               items=items,
-                               total=total,
-                               cgst=cgst,
-                               sgst=sgst,
-                               gst_total=gst_total,
-                               total_incl_gst=total_incl_gst,
-                               final_amount=final_amount,
-                               mode="pdf")
-        # PDF generation 
-        config = get_pdfkit_config()
-        pdf = pdfkit.from_string(html, False, configuration=config)
-        response = make_response(pdf)
+        coins_used = order['coins_used'] or 0
+        final_amount = total_incl_gst - (coins_used / 100)
+
+        # Build PDF using ReportLab Platypus
+        buffer = BytesIO()
+        doc = SimpleDocTemplate(buffer, pagesize=A4,
+                                rightMargin=20*mm, leftMargin=20*mm,
+                                topMargin=20*mm, bottomMargin=20*mm)
+
+        styles = getSampleStyleSheet()
+        styles.add(ParagraphStyle(name='Right', parent=styles['Normal'], alignment=2))
+        styles.add(ParagraphStyle(name='Heading', parent=styles['Heading1'], fontSize=16, leading=18))
+        styles.add(ParagraphStyle(name='Small', parent=styles['Normal'], fontSize=9))
+
+        elements = []
+
+        # Header
+        elements.append(Paragraph("Invoice", styles['Heading']))
+        elements.append(Spacer(1, 6))
+
+        # Company / Restaurant & Customer info table
+        left_info = [
+            Paragraph(f"<b>Restaurant:</b> {order['restaurant_name']}", styles['Normal']),
+            Paragraph(f"<b>Order ID:</b> {order['id']}", styles['Normal']),
+            Paragraph(f"<b>Order Date:</b> {order['created_at']}", styles['Normal'])
+        ]
+        right_info = [
+            Paragraph(f"<b>Customer:</b> {order['username']}", styles['Normal']),
+            Paragraph(f"<b>Email:</b> {order['email']}", styles['Normal']),
+            Paragraph(
+    f"<b>Delivery Address:</b> {order['delivery_address'] if 'delivery_address' in order.keys() else ''}",
+    styles['Normal']
+)
+
+        ]
+
+        info_data = [
+            [left_info, right_info]
+        ]
+        info_table = Table(info_data, colWidths=[95*mm, 95*mm])
+        info_table.setStyle(TableStyle([
+            ('VALIGN', (0,0), (-1,-1), 'TOP'),
+            ('LEFTPADDING', (0,0), (-1,-1), 0),
+            ('RIGHTPADDING', (0,0), (-1,-1), 0),
+        ]))
+        elements.append(info_table)
+        elements.append(Spacer(1, 12))
+
+        # Items table header
+        item_table_data = []
+        item_table_data.append([Paragraph('<b>Item</b>', styles['Normal']),
+                                Paragraph('<b>Qty</b>', styles['Normal']),
+                                Paragraph('<b>Price</b>', styles['Normal']),
+                                Paragraph('<b>Subtotal</b>', styles['Normal'])])
+
+        # Items rows
+        for it in items:
+            item_table_data.append([
+                Paragraph(str(it['name']), styles['Normal']),
+                Paragraph(str(it['quantity']), styles['Normal']),
+                Paragraph(f"₹{it['price']:.2f}", styles['Normal']),
+                Paragraph(f"₹{it['subtotal']:.2f}", styles['Normal'])
+            ])
+
+        # Items table style
+        item_table = Table(item_table_data, colWidths=[90*mm, 20*mm, 35*mm, 35*mm], hAlign='LEFT')
+        item_table.setStyle(TableStyle([
+            ('GRID', (0,0), (-1,-1), 0.5, colors.grey),
+            ('BACKGROUND', (0,0), (-1,0), colors.whitesmoke),
+            ('ALIGN', (1,1), (-1,-1), 'CENTER'),
+            ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+            ('LEFTPADDING', (0,0), (-1,-1), 6),
+            ('RIGHTPADDING', (0,0), (-1,-1), 6),
+        ]))
+        elements.append(item_table)
+        elements.append(Spacer(1, 12))
+
+        # Totals table (right aligned)
+        totals_data = []
+        totals_data.append([Paragraph('Subtotal', styles['Normal']), Paragraph(f"₹{total:.2f}", styles['Right'])])
+        totals_data.append([Paragraph('CGST (9%)', styles['Normal']), Paragraph(f"₹{cgst:.2f}", styles['Right'])])
+        totals_data.append([Paragraph('SGST (9%)', styles['Normal']), Paragraph(f"₹{sgst:.2f}", styles['Right'])])
+        totals_data.append([Paragraph('Total (incl. GST)', styles['Normal']), Paragraph(f"₹{total_incl_gst:.2f}", styles['Right'])])
+        totals_data.append([Paragraph(f'Coins Used', styles['Normal']), Paragraph(f"₹{(coins_used/100):.2f}", styles['Right'])])
+        totals_data.append([Paragraph('<b>Final Amount</b>', styles['Normal']), Paragraph(f"<b>₹{final_amount:.2f}</b>", styles['Right'])])
+
+        totals_table = Table(totals_data, colWidths=[130*mm, 60*mm], hAlign='RIGHT')
+        totals_table.setStyle(TableStyle([
+            ('ALIGN', (1,0), (-1,-1), 'RIGHT'),
+            ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+            ('LINEABOVE', (-2,-1), (-1,-1), 1, colors.black),
+            ('TOPPADDING', (0,0), (-1,-1), 4),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 4),
+        ]))
+        elements.append(totals_table)
+        elements.append(Spacer(1, 8))
+
+        # Footer / notes
+        notes = Paragraph("Thank you for ordering with us!", styles['Small'])
+        elements.append(notes)
+
+        doc.build(elements)
+
+        buffer.seek(0)
+        pdf_bytes = buffer.getvalue()
+        buffer.close()
+
+        response = make_response(pdf_bytes)
         response.headers['Content-Type'] = 'application/pdf'
         response.headers['Content-Disposition'] = f'attachment; filename=invoice_{order_id}.pdf'
         return response
@@ -605,6 +695,59 @@ def admin_dashboard():
         total_revenue=total_revenue
     )
 
+#add vendor 
+@app.route("/add_vendor", methods=["GET", "POST"])
+def add_vendor():
+    if request.method == "POST":
+        name = request.form.get("name", "").strip()
+        cuisine = request.form.get("cuisine", "").strip()
+        location = request.form.get("location", "").strip()
+        rating_raw = request.form.get("rating", 0)
+        description = request.form.get("description", "")
+
+        # try to convert rating to float (defaults to 0.0 on failure)
+        try:
+            rating = float(rating_raw)
+        except (ValueError, TypeError):
+            rating = 0.0
+
+        # ---------- Image Upload ----------
+        image_file = request.files.get("image")
+        image_url = ""  # store a web-friendly path or empty string
+
+        if image_file and image_file.filename:
+            filename = secure_filename(image_file.filename)
+            # ensure unique filenames to avoid overwrites
+            base, ext = os.path.splitext(filename)
+            timestamp = datetime.utcnow().strftime("%Y%m%d%H%M%S%f")
+            filename = f"{base}_{timestamp}{ext}"
+
+            save_path = os.path.join(UPLOAD_FOLDER, filename)
+            # ensure directory exists (should already, but safe)
+            os.makedirs(os.path.dirname(save_path), exist_ok=True)
+
+            # save the file
+            image_file.save(save_path)
+
+            # store the relative URL in DB (use forward slashes)
+            image_url = f"/{UPLOAD_FOLDER.replace(os.sep, '/')}/{filename}".lstrip("/")
+
+        # ---------- Insert into SQLite ----------
+        conn = get_db()
+        try:
+            cur = conn.cursor()
+            cur.execute("""
+                INSERT INTO restaurants (name, cuisine, rating, location, image_url, description)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (name, cuisine, rating, location, image_url, description))
+            conn.commit()
+        finally:
+            conn.close()
+
+        # redirect to your actual admin dashboard route
+        return redirect(url_for("admin_dashboard"))
+
+    return render_template("add_vendor.html")
 
 @app.route('/edit_vendor/<int:id>', methods=['GET', 'POST'])
 @login_required
@@ -614,22 +757,46 @@ def edit_vendor(id):
         return redirect(url_for('index'))
 
     conn = get_db()
-    vendor = conn.execute("SELECT * FROM restaurants WHERE id = ?", (id,)).fetchone()
+    try:
+        vendor = conn.execute("SELECT * FROM restaurants WHERE id = ?", (id,)).fetchone()
 
-    if request.method == "POST":
-        name = request.form['name']
-        location = request.form['location']
-        email = request.form['email']
+        if request.method == "POST":
+            name = request.form.get('name', vendor['name']).strip()
+            cuisine = request.form.get('cuisine', vendor['cuisine']).strip()
+            location = request.form.get('location', vendor['location']).strip()
+            rating_raw = request.form.get('rating', vendor['rating'])
+            description = request.form.get('description', vendor['description'] or "")
 
-        conn.execute("""
-            UPDATE restaurants 
-            SET name = ?, location = ?, email = ?
-            WHERE id = ?
-        """, (name, location, email, id))
+            try:
+                rating = float(rating_raw)
+            except (ValueError, TypeError):
+                rating = vendor['rating'] or 0.0
 
-        conn.commit()
-        flash("Vendor updated successfully!", "success")
-        return redirect(url_for('admin_dashboard'))
+            # Optional image replacement
+            image_file = request.files.get("image")
+            image_url = vendor['image_url'] or ""
+            if image_file and image_file.filename:
+                filename = secure_filename(image_file.filename)
+                base, ext = os.path.splitext(filename)
+                timestamp = datetime.utcnow().strftime("%Y%m%d%H%M%S%f")
+                filename = f"{base}_{timestamp}{ext}"
+                save_path = os.path.join(UPLOAD_FOLDER, filename)
+                os.makedirs(os.path.dirname(save_path), exist_ok=True)
+                image_file.save(save_path)
+                image_url = f"/{UPLOAD_FOLDER.replace(os.sep, '/')}/{filename}".lstrip("/")
+
+            conn.execute("""
+                UPDATE restaurants
+                SET name = ?, cuisine = ?, location = ?, rating = ?, image_url = ?, description = ?
+                WHERE id = ?
+            """, (name, cuisine, location, rating, image_url, description, id))
+            conn.commit()
+
+            flash("Vendor updated successfully!", "success")
+            return redirect(url_for('admin_dashboard'))
+
+    finally:
+        conn.close()
 
     return render_template("edit_vendor.html", vendor=vendor)
 
