@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Add Restaurant</title>
+    <link rel="stylesheet"
+          href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+</head>
+
+<body class="bg-light">
+
+<div class="container mt-5">
+    <h2 class="mb-4">Add New Restaurant</h2>
+
+    <form action="{{ url_for('add_vendor') }}" method="POST"
+          enctype="multipart/form-data" class="bg-white p-4 shadow rounded">
+
+        <div class="mb-3">
+            <label class="form-label">Restaurant Name</label>
+            <input type="text" name="name" class="form-control" required>
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Cuisine</label>
+            <input type="text" name="cuisine" class="form-control" required>
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Location</label>
+            <input type="text" name="location" class="form-control" required>
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Rating (1–5)</label>
+            <input type="number" name="rating" class="form-control" min="1" max="5" required>
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Description (Optional)</label>
+            <textarea name="description" class="form-control"></textarea>
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Restaurant Image</label>
+            <input type="file" name="image" class="form-control" accept="image/*">
+        </div>
+
+        <button class="btn btn-primary">Add Restaurant</button>
+        <a href="{{ url_for('admin_dashboard') }}" class="btn btn-secondary">Back</a>
+
+    </form>
+</div>
+
+</body>
+</html>
