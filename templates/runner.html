@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Delivery Runner </title>
+  <title>Delivery Runner</title>
   <style>
     :root{--bg:#000;--fg:#fff;--gold1:#FFD700;--gold2:#FFA500}
     html,body{
@@ -24,6 +24,7 @@
     }
   </style>
 </head>
+
 <body>
   <div id="wrap">
     <canvas id="gameCanvas" width="900" height="300"></canvas>
@@ -34,10 +35,8 @@
   const canvas = document.getElementById('gameCanvas');
   const ctx = canvas.getContext('2d');
   const coinsEl = document.getElementById('coins');
-  canvas.width = 900; 
-  canvas.height = 300;
 
-  // 🎮 Difficulty — tuned for 3/5 easy
+  // ✔ Game settings
   let gameSpeed = 4.2;
   let coins_earned = 0;
   let isGameOver = false;
@@ -49,6 +48,7 @@
 
   function rand(min,max){ return Math.random()*(max-min)+min; }
 
+  // ✔ Reset game
   function resetGame(){
     runner.y = 220; runner.vy = 0; runner.onGround = true;
     obstacles = []; coins = []; isGameOver=false; frame=0;
@@ -56,7 +56,7 @@
     requestAnimationFrame(loop);
   }
 
-  // 🧱 Different obstacle shapes
+  // ✔ Spawn obstacles
   function spawnObstacle(){
     const t = Math.floor(rand(0,4));
     if(t===0) obstacles.push({x:canvas.width,y:240,w:28,h:40,color:'#555',shape:'rect'});
@@ -65,28 +65,51 @@
     else obstacles.push({x:canvas.width,y:245,w:20,h:35,color:'#aaa',shape:'cone'});
   }
 
-  function spawnCoin(){ 
-    coins.push({x:canvas.width, y:160 + Math.random()*80, r:9}); 
+  // ✔ Spawn coins
+  function spawnCoin(){
+    coins.push({x:canvas.width, y:160 + Math.random()*80, r:9});
   }
 
-  // Controls
+  // ✔ Controls
   window.addEventListener('keydown', e=>{
     if((e.code==='Space' || e.code==='ArrowUp') && runner.onGround && !isGameOver){
       runner.vy = runner.jumpPower;
       runner.onGround=false;
     }
   });
+
   canvas.addEventListener('touchstart', e=>{
-    e.preventDefault(); 
+    e.preventDefault();
     if(runner.onGround && !isGameOver){
-      runner.vy = runner.jumpPower; runner.onGround=false;
+      runner.vy = runner.jumpPower;
+      runner.onGround=false;
     }
   });
 
+  // ✔ Rectangle collision (for obstacles)
   function rectCollision(a,b){
-    return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+    return a.x < b.x + b.w && a.x + a.w > b.x &&
+           a.y < b.y + b.h && a.y + a.h > b.y;
   }
 
+  // ✔ NEW FIX — Perfect circle-rectangle collision for coins
+  function circleRectCollision(circle, rect){
+    const distX = Math.abs(circle.x - (rect.x + rect.w/2));
+    const distY = Math.abs(circle.y - (rect.y + rect.h/2));
+
+    if (distX > (rect.w/2 + circle.r)) return false;
+    if (distY > (rect.h/2 + circle.r)) return false;
+
+    if (distX <= rect.w/2) return true;
+    if (distY <= rect.h/2) return true;
+
+    const dx = distX - rect.w/2;
+    const dy = distY - rect.h/2;
+
+    return (dx*dx + dy*dy) <= (circle.r * circle.r);
+  }
+
+  // ✔ Main game loop
   function loop(){
     if(isGameOver) return;
     frame++;
@@ -97,9 +120,11 @@
 
     // stars
     ctx.fillStyle='#222';
-    for(let i=0;i<40;i++){ ctx.fillRect((i*37)%canvas.width,(i*13)%120,1,1); }
+    for(let i=0;i<40;i++){
+      ctx.fillRect((i*37)%canvas.width,(i*13)%120,1,1);
+    }
 
-    // white ground line
+    // ground
     ctx.strokeStyle='#fff';
     ctx.lineWidth=2;
     ctx.beginPath();
@@ -107,19 +132,19 @@
     ctx.lineTo(canvas.width,280);
     ctx.stroke();
 
-    // runner (delivery boy)
-    ctx.fillStyle='#e33'; 
+    // runner
+    ctx.fillStyle='#e33';
     ctx.fillRect(runner.x, runner.y, runner.w, runner.h-10);
-    ctx.fillStyle='#fff'; 
+    ctx.fillStyle='#fff';
     ctx.fillRect(runner.x+10, runner.y-12, 20,12);
-    ctx.fillStyle='#e33'; 
+    ctx.fillStyle='#e33';
     ctx.fillRect(runner.x+8, runner.y-18, 24,6);
-    ctx.fillStyle='#444'; 
+    ctx.fillStyle='#444';
     ctx.fillRect(runner.x-16, runner.y+8, 14,20);
 
-    // obstacles
+    // ✔ Obstacles
     for(let i=obstacles.length-1;i>=0;i--){
-      const o = obstacles[i]; 
+      const o = obstacles[i];
       o.x -= gameSpeed;
 
       ctx.fillStyle = o.color;
@@ -133,9 +158,7 @@
         ctx.fill();
       }
       else if(o.shape==='cube'){
-        ctx.beginPath();
-        ctx.rect(o.x,o.y,o.w,o.h);
-        ctx.fill();
+        ctx.fillRect(o.x,o.y,o.w,o.h);
       }
       else if(o.shape==='cone'){
         ctx.beginPath();
@@ -146,9 +169,9 @@
         ctx.fill();
       }
 
-      if(o.x+o.w<-10) obstacles.splice(i,1);
+      if(o.x + o.w < -10) obstacles.splice(i,1);
 
-      if(rectCollision(runner,{x:o.x,y:o.y,w:o.w,h:o.h})){
+      if(rectCollision(runner,o)){
         isGameOver = true;
         updateCoinsToWallet(coins_earned);
         drawGameOver();
@@ -156,54 +179,67 @@
       }
     }
 
-    // coins
-    for(let i=coins.length-1;i>=0;i--){
+    // ✔ FIXED COIN SYSTEM
+    for (let i = coins.length - 1; i >= 0; i--) {
       const c = coins[i];
+
+      // collision FIRST (fixes glitch)
+      if (circleRectCollision(c, runner)) {
+        coins.splice(i, 1);
+        coins_earned++;
+        coinsEl.textContent = coins_earned;
+        continue;
+      }
+
+      // move
       c.x -= gameSpeed;
 
+      // draw
       const grad = ctx.createLinearGradient(c.x-c.r,c.y-c.r,c.x+c.r,c.y+c.r);
       grad.addColorStop(0,'#FFD700');
       grad.addColorStop(1,'#FFA500');
+
       ctx.beginPath();
       ctx.fillStyle = grad;
       ctx.arc(c.x,c.y,c.r,0,Math.PI*2);
       ctx.fill();
-      ctx.lineWidth=1;
+
       ctx.strokeStyle='#b8860b';
       ctx.stroke();
 
-      if(c.x+c.r<-10) coins.splice(i,1);
-      if(Math.abs((runner.x+runner.w/2)-c.x)<30 && Math.abs((runner.y+runner.h/2)-c.y)<30){
-        coins.splice(i,1);
-        coins_earned++;
-        coinsEl.textContent = coins_earned;
-      }
+      // remove if off-screen
+      if(c.x + c.r < 0) coins.splice(i,1);
     }
 
-    // physics
-    runner.y += runner.vy; 
-    runner.vy += runner.gravity || 0.7;
-    if(runner.y>220){ runner.y=220; runner.vy=0; runner.onGround=true; }
+    // ✔ physics
+    runner.y += runner.vy;
+    runner.vy += runner.gravity;
+    if(runner.y > 220){
+      runner.y = 220;
+      runner.vy = 0;
+      runner.onGround = true;
+    }
 
-    // spawns
+    // ✔ spawning
     if(frame % 180 === 0) spawnObstacle();
     if(frame % 210 === 0) spawnCoin();
 
     requestAnimationFrame(loop);
   }
 
+  // ✔ Game Over screen
   function drawGameOver(){
     ctx.fillStyle='rgba(0,0,0,0.6)';
     ctx.fillRect(0,0,canvas.width,canvas.height);
     ctx.fillStyle='#fff';
     ctx.font='bold 28px sans-serif';
     ctx.textAlign='center';
-    ctx.fillText('Game Over',canvas.width/2,canvas.height/2 -10);
+    ctx.fillText('Game Over', canvas.width/2, canvas.height/2 - 10);
     ctx.font='16px sans-serif';
-    ctx.fillText('Click OK to restart after reward alert',canvas.width/2,canvas.height/2 +20);
+    ctx.fillText('Click OK to restart after reward alert', canvas.width/2, canvas.height/2 + 20);
   }
 
-  // 🎁 Backend sync + restart after OK (1s delay)
+  // ✔ API Sync
   function updateCoinsToWallet(score){
     fetch('/api/game/complete', {
       method:'POST',
@@ -213,12 +249,11 @@
     .then(r=>r.json())
     .then(data=>{
       if(data.success){
-        alert(`🎉 You earned ${data.coins_earned} coins!\\nYour new balance: 🪙 ${data.new_balance}`);
-        setTimeout(()=>{ resetGame(); },1000);
+        alert(`🎉 You earned ${data.coins_earned} coins!\nBalance: 🪙 ${data.new_balance}`);
       } else {
-        alert(data.message || 'Could not update coins. Try again!');
-        setTimeout(()=>{ resetGame(); },1000);
+        alert(data.message || 'Could not update coins.');
       }
+      setTimeout(()=>{ resetGame(); },1000);
     })
     .catch(err=>{
       console.error('Error updating coins:', err);
