@@ -22,12 +22,11 @@ from reportlab.lib.units import mm
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
 # Ensure upload folder exists
-UPLOAD_FOLDER = "static/uploads"
+UPLOAD_FOLDER = "static/restaurants"
 
 # Create folder if it does not exist
 if not os.path.exists(UPLOAD_FOLDER):
     os.makedirs(UPLOAD_FOLDER)
-
 
 # App config
 app = Flask(__name__)
