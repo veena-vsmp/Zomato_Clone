@@ -168,13 +168,11 @@ def login():
     if request.method == 'POST':
         identifier = request.form.get('username')
         password = request.form.get('password')
-
         conn = get_db()
         try:
             u = conn.execute('SELECT * FROM users WHERE username = ? OR email = ?', (identifier, identifier)).fetchone()
         finally:
             conn.close()
-
         if u and check_password_hash(u['password'], password):
             user_obj = User(u['id'], u['username'], u['email'], u['coin_balance'])
             login_user(user_obj)
@@ -438,20 +436,52 @@ def wallet():
 def invoice(order_id):
     conn = get_db()
     try:
-        order = conn.execute('''SELECT o.*, r.name AS restaurant_name, u.username, u.email
-                                FROM orders o JOIN restaurants r ON o.restaurant_id = r.id
-                                JOIN users u ON o.user_id = u.id
-                                WHERE o.id = ? AND o.user_id = ?''',
-                             (order_id, current_user.id)).fetchone()
+        order = conn.execute('''
+            SELECT o.*, r.name AS restaurant_name, u.username, u.email
+            FROM orders o
+            JOIN restaurants r ON o.restaurant_id = r.id
+            JOIN users u ON o.user_id = u.id
+            WHERE o.id = ? AND o.user_id = ?
+        ''', (order_id, current_user.id)).fetchone()
+
         if not order:
             flash('Order not found!', 'error')
             return redirect(url_for('orders'))
 
-        items = conn.execute('''SELECT m.name, oi.quantity, oi.price, (oi.quantity * oi.price) AS subtotal
-                                FROM order_items oi JOIN menu_items m ON oi.menu_item_id = m.id
-                                WHERE oi.order_id = ?''', (order_id,)).fetchall()
+        items = conn.execute('''
+            SELECT m.name, oi.quantity, oi.price,
+                   (oi.quantity * oi.price) AS subtotal
+            FROM order_items oi
+            JOIN menu_items m ON oi.menu_item_id = m.id
+            WHERE oi.order_id = ?
+        ''', (order_id,)).fetchall()
 
-        total = sum(it['subtotal'] for it in items)
+        total = sum(i['subtotal'] for i in items)
+        cgst = total * 0.09
+        sgst = total * 0.09
+        total_incl_gst = total + cgst + sgst
+        
+        coins_used = order['coins_used'] or 0
+        final_amount = total_incl_gst - (coins_used / 100)
+        return render_template(
+            'invoice.html',
+            order=order,
+            items=items,
+            total=total,
+            cgst=cgst,
+            sgst=sgst,
+            total_incl_gst=total_incl_gst,
+            final_amount=final_amount,
+            mode="html"
+        )
+    finally:
+        conn.close()
+
+@app.route('/invoice/<int:order_id>/download')
+@login_required
+def invoice_download(order_id):
+    conn = get_db()
+    try:
         order = conn.execute('''
             SELECT o.*, r.name AS restaurant_name, u.username, u.email
             FROM orders o
@@ -463,78 +493,38 @@ def invoice(order_id):
             flash('Order not found!', 'error')
             return redirect(url_for('orders'))
         items = conn.execute('''
-            SELECT m.name, oi.quantity, oi.price, (oi.quantity * oi.price) AS subtotal
+            SELECT m.name, oi.quantity, oi.price,
+                   (oi.quantity * oi.price) AS subtotal
             FROM order_items oi
             JOIN menu_items m ON oi.menu_item_id = m.id
             WHERE oi.order_id = ?
         ''', (order_id,)).fetchall()
-        # Calculate totals
-        total = sum(item['subtotal'] for item in items)
+        total = sum(i['subtotal'] for i in items)
         cgst = total * 0.09
         sgst = total * 0.09
-        gst_total = cgst + sgst
-        total_incl_gst = total + gst_total
-        final_amount = total_incl_gst - order['coins_used']
-        return render_template('invoice.html', order=order, items=items, total=total,
-                               cgst=cgst, sgst=sgst, gst_total=gst_total,
-                               total_incl_gst=total_incl_gst, final_amount=final_amount, mode="html")
-        final_amount = total_incl_gst - (order['coins_used'] /100)
-        final_amount = total_incl_gst - (order['coins_used'] /100) if order['coins_used'] is not None else total_incl_gst
-        return render_template('invoice.html',
-                               order=order,
-                               items=items,
-                               total=total,
-                               cgst=cgst,
-                               sgst=sgst,
-                               gst_total=gst_total,
-                               total_incl_gst=total_incl_gst,
-                               final_amount=final_amount,
-                               mode="html")
+        total_incl_gst = total + cgst + sgst
+        coins_used = order['coins_used'] or 0
+        final_amount = total_incl_gst - (coins_used / 100)
+        html = render_template(
+            'invoice.html',
+            order=order,
+            items=items,
+            total=total,
+            cgst=cgst,
+            sgst=sgst,
+            total_incl_gst=total_incl_gst,
+            final_amount=final_amount,
+            mode="pdf"
+        )
+        config = get_pdfkit_config()
+        pdf = pdfkit.from_string(html, False, configuration=config)
+        response = make_response(pdf)
+        response.headers['Content-Type'] = 'application/pdf'
+        response.headers['Content-Disposition'] = f'attachment; filename=invoice_{order_id}.pdf'
+        return response
     finally:
         conn.close()
 
-@app.route('/invoice/<int:order_id>/download') 
-@login_required 
-def invoice_download(order_id): 
-    conn = get_db() 
-    try: 
-        order = conn.execute(''' 
-        SELECT o.*, r.name AS restaurant_name, u.username, u.email
-        FROM orders o 
-        JOIN restaurants r ON o.restaurant_id = r.id 
-        JOIN users u ON o.user_id = u.id 
-        WHERE o.id = ? AND o.user_id = ? 
-        ''', (order_id, current_user.id)).fetchone() 
-        if not order: 
-            flash('Order not found!', 'error') 
-        return redirect(url_for('orders')) 
-        items = conn.execute('''
-        SELECT m.name, oi.quantity, oi.price, (oi.quantity * oi.price) AS subtotal 
-        FROM order_items oi 
-        JOIN menu_items m ON oi.menu_item_id = m.id 
-        WHERE oi.order_id = ? 
-        ''', (order_id,)).fetchall()
-        total = sum(item['subtotal'] for item in items) 
-        cgst = total * 0.09 
-        sgst = total * 0.09 
-        gst_total = cgst + sgst 
-        total_incl_gst = total + gst_total 
-        final_amount = total_incl_gst - (order['coins_used'] / 100)
-        html = render_template('invoice.html', 
-        order=order, 
-        items=items, 
-        total=total, 
-        cgst=cgst, 
-        sgst=sgst, 
-        gst_total=gst_total, 
-        total_incl_gst=total_incl_gst, 
-        final_amount=final_amount, mode="pdf") 
-        # PDF generation config = get_pdfkit_config() pdf = pdfkit.from_string(html, False, configuration=config) 
-        response = make_response(pdf) 
-        response.headers['Content-Type'] = 'application/pdf' 
-        response.headers['Content-Disposition'] = f'attachment; filename=invoice_{order_id}.pdf' 
-        return response 
-    finally: conn.close()
 
 @app.route('/invoice-pdf/<int:order_id>')
 @login_required
