@@ -17,20 +17,7 @@ def init_db():
     )"""
     )
 
-    # vendor table
-    c.execute(
-        """CREATE TABLE IF NOT EXISTS vendors (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        restaurant_name TEXT NOT NULL,
-        owner_name TEXT NOT NULL,
-        email TEXT UNIQUE NOT NULL,
-        phone TEXT NOT NULL,
-        address TEXT NOT NULL,
-        cuisine_type TEXT,
-        status TEXT DEFAULT 'Pending',   -- Pending / Approved / Rejected
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    )"""
-    )
+   
 
     # restaurant table
     c.execute(
