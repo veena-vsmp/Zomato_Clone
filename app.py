@@ -266,13 +266,16 @@ def restaurant(restaurant_id):
 def add_to_cart():
     item_id = request.form.get("item_id")
     quantity = int(request.form.get("quantity", 1))
+
     if "cart" not in session:
         session["cart"] = {}
+
     cart = session["cart"]
     cart[item_id] = cart.get(item_id, 0) + quantity
     session["cart"] = cart
+
     flash("Item added to cart!", "success")
-    return redirect(url_for("cart"))
+    return redirect(request.referrer)
 
 
 @app.route("/cart")
